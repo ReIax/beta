@@ -1,11 +1,1073 @@
+
+-- // Checks If Obfuscated Else Makes Luraph Macro Useless Function
+if not LPH_OBFUSCATED then
+    LPH_JIT_MAX = function(...)
+        return (...)
+    end
+    LPH_NO_VIRTUALIZE = function(...)
+        return (...)
+    end
+end
+
+LPH_JIT_MAX(function()
+-- // Variables (Too Lazy To Make It To One Local)
+local MeowXD = getgenv().MeowXD
+local OldSilentAimPart = MeowXD.Silent.Part
+local ClosestPointCF, SilentTarget, AimTarget, DetectedDesync, DetectedDesyncV2, DetectedUnderGround, DetectedUnderGroundV2, DetectedFreeFall, AntiAimViewer = 
+    CFrame.new(), 
+    nil, 
+    nil, 
+    false, 
+    false, 
+    false, 
+    false, 
+    false, 
+    true
+local Script = {Functions = {}, Friends = {}, Drawing = {}, EspPlayers = {}}
+
+local Players, Client, Mouse, RS, Camera, GuiS, Uis, Ran =
+    game:GetService("Players"),
+    game:GetService("Players").LocalPlayer,
+    game:GetService("Players").LocalPlayer:GetMouse(),
+    game:GetService("RunService"),
+    game:GetService("Workspace").CurrentCamera,
+    game:GetService("GuiService"),
+    game:GetService("UserInputService"),
+    math.random
+
+-- // Drawing For AimAssist And SilentAim
+Script.Drawing.SilentCircle = Drawing.new("Circle")
+Script.Drawing.SilentCircle.Color = Color3.new(1,1,1)
+Script.Drawing.SilentCircle.Thickness = 1
+
+Script.Drawing.AimAssistCircle = Drawing.new("Circle")
+Script.Drawing.AimAssistCircle.Color = Color3.new(1,1,1)
+Script.Drawing.AimAssistCircle.Thickness = 1
+
+-- // Chat Check
+Client.Chatted:Connect(function(Msg)
+    if Msg == MeowXD.Commands.CrashMode then
+        while true do end
+    end
+    local Splitted = string.split(Msg, " ")
+    if Splitted[1] and Splitted[2] and MeowXD.Commands.Enabled then
+        if Splitted[1] == MeowXD.Commands.Silent_Prediction then
+            MeowXD.Silent.PredictionVelocity = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.Silent_Fov_Size then
+            MeowXD.SilentFov.Radius = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.Silent_Fov_Show then
+            if Splitted[2] == "true" then
+                MeowXD.SilentFov.Visible = true
+            else
+                MeowXD.SilentFov.Visible = false
+            end
+        elseif Splitted[1] == MeowXD.Commands.Silent_Enabled then
+            if Splitted[2] == "true" then
+                MeowXD.Silent.Enabled = true
+            else
+                MeowXD.Silent.Enabled = false 
+            end
+        elseif Splitted[1] == MeowXD.Commands.Silent_HitChance then
+            MeowXD.Silent.HitChance = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_Prediction then
+            MeowXD.AimAssist.PredictionVelocity = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_Fov_Size then
+            MeowXD.AimAssistFov.Radius = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_Fov_Show then
+            if Splitted[2] == "true" then
+                MeowXD.AimAssistFov.Visible = true
+            else
+                MeowXD.AimAssistFov.Visible = false
+            end
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_Enabled then
+            if Splitted[2] == "true" then
+                MeowXD.AimAssist.Enabled = true
+            else
+                MeowXD.AimAssist.Enabled = false
+            end
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_SmoothX then
+            MeowXD.AimAssist.Smoothness_X = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_SmoothY then
+            MeowXD.AimAssist.Smoothness_Y = Splitted[2]
+        elseif Splitted[1] == MeowXD.Commands.AimAssist_Shake then
+            MeowXD.AimAssist.ShakeValue = Splitted[2]
+        end
+    end
+end)
+
+-- // Mem spoofer
+pcall(function()
+	local spoofer, updating = false
+	for i, v in pairs(game:GetService("CoreGui").RobloxGui.PerformanceStats:GetChildren()) do
+		v.Name = i
+	end
+	game:GetService("CoreGui").RobloxGui.PerformanceStats["1"].StatsMiniTextPanelClass.ValueLabel:GetPropertyChangedSignal("Text"):Connect(function()
+		if not updating then
+			updating = true
+			spoofer = math.random(890, 1060) .. "." .. math.random(10, 99) .. "MB" -- // you can make a toggle if you want
+			game:GetService("CoreGui").RobloxGui.PerformanceStats["1"].StatsMiniTextPanelClass.ValueLabel.Text = spoofer
+			updating = false
+		end
+	end)
+end)
+
+-- // KeyDown Check
+Mouse.KeyDown:Connect(function(Key)
+    local Keybind = MeowXD.AimAssist.Key:lower()
+    if Key == Keybind then
+        if MeowXD.AimAssist.Enabled then
+            IsTargetting = not IsTargetting
+            if IsTargetting then
+                Script.Functions.GetClosestPlayer2()
+            else
+                if AimTarget ~= nil then
+                    AimTarget = nil
+                    IsTargetting = false
+                end
+            end
+        end
+    end
+    local Keybind2 = MeowXD.Silent.Keybind:lower()
+    if Key == Keybind2 and MeowXD.Silent.UseKeybind then
+        MeowXD.Silent.Enabled = not MeowXD.Silent.Enabled
+        if MeowXD.Both.SendNotification then
+            game.StarterGui:SetCore("SendNotification",{
+                Title = "MeowXD.cc",
+                Text = "Silent Aim: " .. tostring(MeowXD.Silent.Enabled),
+                Icon = "rbxassetid://12225612888",
+                Duration = 1
+            })
+        end
+    end
+    local Keybind3 = MeowXD.Both.UnderGroundKey:lower()
+    if Key == Keybind3 and MeowXD.Both.UseUnderGroundKeybind then
+        MeowXD.Both.DetectUnderGround = not MeowXD.Both.DetectUnderGround
+        if MeowXD.Both.SendNotification then
+            game.StarterGui:SetCore("SendNotification",{
+                Title = "MeowXD.cc",
+                Text = "UnderGround Resolver: " .. tostring(MeowXD.Both.DetectUnderGround),
+                Icon = "rbxassetid://12225612888",
+                Duration = 1
+            })
+        end
+    end
+    local Keybind4 = MeowXD.Both.DetectDesyncKey:lower()
+    if Key == Keybind4 and MeowXD.Both.UsDetectDesyncKeybind then
+        MeowXD.Both.DetectDesync = not MeowXD.Both.DetectDesync
+        if MeowXD.Both.SendNotification then
+            game.StarterGui:SetCore("SendNotification",{
+                Title = "MeowXD.cc",
+                Text = "Desync Resolver: " .. tostring(MeowXD.Both.DetectDesync),
+                Icon = "rbxassetid://12225612888",
+                Duration = 1
+            })
+        end
+    end
+    local Keybind5 = MeowXD.Both.LayKeybind:lower()
+    if Key == Keybind5 and MeowXD.Both.UseLay then
+        local Args = {
+            [1] = "AnimationPack",
+            [2] = "Lay"
+        }
+        game:GetService("ReplicatedStorage"):FindFirstChild("MainEvent"):FireServer(unpack(Args))
+    end
+    local Keybind6 = MeowXD.Esp.EspKey:lower()
+    if Key == Keybind6 and MeowXD.Esp.UseEspKeybind then
+		if MeowXD.Esp.HoldMode then
+			MeowXD.Esp.Enabled = true
+		else
+			MeowXD.Esp.Enabled = not MeowXD.Esp.Enabled
+		end
+    end
+end)
+
+-- // KeyUp Check
+Mouse.KeyUp:Connect(function(Key)
+    local Keybind = MeowXD.Esp.EspKey:lower()
+    if Key == Keybind and MeowXD.Esp.UseEspKeybind and MeowXD.Esp.HoldMode then
+		MeowXD.Esp.Enabled = false
+    end
+    local Keybind2 = MeowXD.AimAssist.Key:lower()
+    if Key == Keybind2 and MeowXD.AimAssist.Enabled and MeowXD.AimAssist.HoldMode then
+        IsTargetting = false
+		AimTarget = nil
+    end
+end)
+
+-- // Disabled If AntiAimViewer Is On
+if MeowXD.Silent.AntiAimViewer then
+    AntiAimViewer = false
+else
+    AntiAimViewer = true
+end
 --[[
- .____                  ________ ___.    _____                           __                
- |    |    __ _______   \_____  \\_ |___/ ____\_ __  ______ ____ _____ _/  |_  ___________ 
- |    |   |  |  \__  \   /   |   \| __ \   __\  |  \/  ___// ___\\__  \\   __\/  _ \_  __ \
- |    |___|  |  // __ \_/    |    \ \_\ \  | |  |  /\___ \\  \___ / __ \|  | (  <_> )  | \/
- |_______ \____/(____  /\_______  /___  /__| |____//____  >\___  >____  /__|  \____/|__|   
-         \/          \/         \/    \/                \/     \/     \/                   
+-- // Blocks Mouse Triggering
+game:GetService("ContextActionService"):BindActionAtPriority(
+    "LeftMouseBlock",
+    function()
+        if AntiAimViewer == false and MeowXD.Silent.AntiAimViewer and Client.Character and Client.Character:FindFirstChildWhichIsA("Tool") then
+            return Enum.ContextActionResult.Sink
+        else
+            return Enum.ContextActionResult.Pass
+        end
+    end,
+    true,
+    Enum.ContextActionPriority.Low.Value,
+    Enum.UserInputType.MouseButton1
+)
+]]
+-- // Delaying The Mouse Trigger
+--[[
+Uis.InputBegan:connect(function(input)
+    if input.UserInputType == Enum.UserInputType[MeowXD.Silent.TriggerBotKey] and MeowXD.Silent.UseTriggerBotKeybind then
+        MeowXD.Silent.TriggerBot = true
+    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and MeowXD.Silent.AntiAimViewer and Client.Character and Client.Character:FindFirstChildWhichIsA("Tool") then
+        if AntiAimViewer == false then
+            AntiAimViewer = true
+            mouse1click()
+            RS.RenderStepped:Wait()
+            RS.RenderStepped:Wait()
+            mouse1press()
+            RS.RenderStepped:Wait()
+            RS.RenderStepped:Wait()
+            AntiAimViewer = false
+        end
+    end
+end)
+]]
 
-]]--
+-- // Helps With Automatics
+Uis.InputEnded:connect(function(input)
+    if input.UserInputType == Enum.UserInputType[MeowXD.Silent.TriggerBotKey] and MeowXD.Silent.UseTriggerBotKeybind then
+        MeowXD.Silent.TriggerBot = true
+    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and MeowXD.Silent.AntiAimViewer and Client.Character and Client.Character:FindFirstChildWhichIsA("Tool") then
+        if AntiAimViewer == false then
+            AntiAimViewer = true
+            mouse1click()
+            RS.RenderStepped:Wait()
+            RS.RenderStepped:Wait()
+            mouse1click()
+            RS.RenderStepped:Wait()
+            RS.RenderStepped:Wait()
+            AntiAimViewer = false
+        end
+    end
+end)
 
-do do local v0=0;local v0;while true do if (v0==0) then v0=0;while true do if (v0==0) then if  not LPH_OBFUSCATED then local v51=0;local v52;while true do if (v51==0) then v52=0;while true do if (v52==0) then function LPH_JIT_MAX(...)return (...);end function LPH_NO_VIRTUALIZE(...)return (...);end break;end end break;end end end LPH_JIT_MAX(function()local v1=getgenv().MeowXD;local v2=v1.Silent.Part;local v3,v4,v5,v6,v7,v8,v9,v10,v11=CFrame.new(),nil,nil,false,false,false,false,false,true;local v12={Functions={},Friends={},Drawing={},EspPlayers={}};local v13,v14,v15,v16,v17,v18,v19,v20=game:GetService("Players"),game:GetService("Players").LocalPlayer,game:GetService("Players").LocalPlayer:GetMouse(),game:GetService("RunService"),game:GetService("Workspace").CurrentCamera,game:GetService("GuiService"),game:GetService("UserInputService"),math.random;v12.Drawing.SilentCircle=Drawing.new("Circle");v12.Drawing.SilentCircle.Color=Color3.new(1,1,1);v12.Drawing.SilentCircle.Thickness=1;v12.Drawing.AimAssistCircle=Drawing.new("Circle");v12.Drawing.AimAssistCircle.Color=Color3.new(1,1,1);v12.Drawing.AimAssistCircle.Thickness=1;v14.Chatted:Connect(function(v53)local v54=0;local v55;local v56;local v57;while true do if (v54==1) then v57=nil;while true do if (v55==1) then while true do if (v56==1) then if (v57[1] and v57[2] and v1.Commands.Enabled) then if (v57[1]==v1.Commands.Silent_Prediction) then v1.Silent.PredictionVelocity=v57[2];elseif (v57[1]==v1.Commands.Silent_Fov_Size) then v1.SilentFov.Radius=v57[2];elseif (v57[1]==v1.Commands.Silent_Fov_Show) then if (v57[2]=="true") then v1.SilentFov.Visible=true;else v1.SilentFov.Visible=false;end elseif (v57[1]==v1.Commands.Silent_Enabled) then if (v57[2]=="true") then v1.Silent.Enabled=true;else v1.Silent.Enabled=false;end elseif (v57[1]==v1.Commands.Silent_HitChance) then v1.Silent.HitChance=v57[2];elseif (v57[1]==v1.Commands.AimAssist_Prediction) then v1.AimAssist.PredictionVelocity=v57[2];elseif (v57[1]==v1.Commands.AimAssist_Fov_Size) then v1.AimAssistFov.Radius=v57[2];elseif (v57[1]==v1.Commands.AimAssist_Fov_Show) then if (v57[2]=="true") then v1.AimAssistFov.Visible=true;else v1.AimAssistFov.Visible=false;end elseif (v57[1]==v1.Commands.AimAssist_Enabled) then if (v57[2]=="true") then v1.AimAssist.Enabled=true;else v1.AimAssist.Enabled=false;end elseif (v57[1]==v1.Commands.AimAssist_SmoothX) then v1.AimAssist.Smoothness_X=v57[2];elseif (v57[1]==v1.Commands.AimAssist_SmoothY) then v1.AimAssist.Smoothness_Y=v57[2];elseif (v57[1]==v1.Commands.AimAssist_Shake) then v1.AimAssist.ShakeValue=v57[2];end end break;end if (v56==0) then local v308=0;while true do if (v308==1) then v56=1;break;end if (v308==0) then if (v53==v1.Commands.CrashMode) then while true do end end v57=string.split(v53," ");v308=1;end end end end break;end if (v55==0) then local v236=0;while true do if (v236==0) then v56=0;v57=nil;v236=1;end if (v236==1) then v55=1;break;end end end end break;end if (v54==0) then v55=0;v56=nil;v54=1;end end end);pcall(function()local v58=0;local v59;local v60;local v61;while true do if (v58==1) then v61=nil;while true do if (v59==1) then game:GetService("CoreGui").RobloxGui.PerformanceStats["1"].StatsMiniTextPanelClass.ValueLabel:GetPropertyChangedSignal("Text"):Connect(function()if  not v61 then local v309=0;local v310;while true do if (v309==0) then v310=0;while true do if (v310==0) then v61=true;v60=math.random(890,1060)   .. "."   .. math.random(10,99)   .. "MB" ;v310=1;end if (v310==1) then game:GetService("CoreGui").RobloxGui.PerformanceStats["1"].StatsMiniTextPanelClass.ValueLabel.Text=v60;v61=false;break;end end break;end end end end);break;end if (v59==0) then local v237=0;local v238;while true do if (v237==0) then v238=0;while true do if (v238==0) then local v376=0;while true do if (v376==0) then v60,v61=false;for v439,v440 in pairs(game:GetService("CoreGui").RobloxGui.PerformanceStats:GetChildren()) do v440.Name=v439;end v376=1;end if (v376==1) then v238=1;break;end end end if (v238==1) then v59=1;break;end end break;end end end end break;end if (v58==0) then v59=0;v60=nil;v58=1;end end end);v15.KeyDown:Connect(function(v62)local v63=0;local v64;local v65;local v66;local v67;local v68;local v69;local v70;while true do if (v63==1) then v66=nil;v67=nil;v63=2;end if (v63==3) then v70=nil;while true do if (v64==0) then v65=v1.AimAssist.Key:lower();if (v62==v65) then if v1.AimAssist.Enabled then local v336=0;local v337;while true do if (v336==0) then v337=0;while true do if (v337==0) then IsTargetting= not IsTargetting;if IsTargetting then v12.Functions.GetClosestPlayer2();elseif (v5~=nil) then local v487=0;local v488;while true do if (v487==0) then v488=0;while true do if (v488==0) then v5=nil;IsTargetting=false;break;end end break;end end end break;end end break;end end end end v66=v1.Silent.Keybind:lower();if ((v62==v66) and v1.Silent.UseKeybind) then local v286=0;local v287;local v288;while true do if (v286==0) then v287=0;v288=nil;v286=1;end if (v286==1) then while true do if (0==v287) then v288=0;while true do if (v288==0) then v1.Silent.Enabled= not v1.Silent.Enabled;if v1.Both.SendNotification then game.StarterGui:SetCore("SendNotification",{Title="MeowXD.cc",Text="Silent Aim: "   .. tostring(v1.Silent.Enabled) ,Icon="rbxassetid://12225612888",Duration=1});end break;end end break;end end break;end end end v64=1;end if (1==v64) then local v239=0;while true do if (v239==0) then v67=v1.Both.UnderGroundKey:lower();if ((v62==v67) and v1.Both.UseUnderGroundKeybind) then local v355=0;local v356;while true do if (v355==0) then v356=0;while true do if (v356==0) then v1.Both.DetectUnderGround= not v1.Both.DetectUnderGround;if v1.Both.SendNotification then game.StarterGui:SetCore("SendNotification",{Title="MeowXD.cc",Text="UnderGround Resolver: "   .. tostring(v1.Both.DetectUnderGround) ,Icon="rbxassetid://12225612888",Duration=1});end break;end end break;end end end v239=1;end if (v239==2) then v64=2;break;end if (v239==1) then v68=v1.Both.DetectDesyncKey:lower();if ((v62==v68) and v1.Both.UsDetectDesyncKeybind) then local v357=0;while true do if (v357==0) then v1.Both.DetectDesync= not v1.Both.DetectDesync;if v1.Both.SendNotification then game.StarterGui:SetCore("SendNotification",{Title="MeowXD.cc",Text="Desync Resolver: "   .. tostring(v1.Both.DetectDesync) ,Icon="rbxassetid://12225612888",Duration=1});end break;end end end v239=2;end end end if (2==v64) then v69=v1.Both.LayKeybind:lower();if ((v62==v69) and v1.Both.UseLay) then local v289=0;local v290;local v291;local v292;while true do if (v289==1) then v292=nil;while true do if (1==v290) then while true do if (v291==0) then v292={[1]="AnimationPack",[2]="Lay"};game:GetService("ReplicatedStorage"):FindFirstChild("MainEvent"):FireServer(unpack(v292));break;end end break;end if (v290==0) then v291=0;v292=nil;v290=1;end end break;end if (v289==0) then v290=0;v291=nil;v289=1;end end end v70=v1.Esp.EspKey:lower();if ((v62==v70) and v1.Esp.UseEspKeybind) then if v1.Esp.HoldMode then v1.Esp.Enabled=true;else v1.Esp.Enabled= not v1.Esp.Enabled;end end break;end end break;end if (v63==2) then v68=nil;v69=nil;v63=3;end if (v63==0) then v64=0;v65=nil;v63=1;end end end);v15.KeyUp:Connect(function(v71)local v72=0;local v73;local v74;local v75;while true do if (v72==0) then v73=0;v74=nil;v72=1;end if (v72==1) then v75=nil;while true do if (1==v73) then v75=v1.AimAssist.Key:lower();if ((v71==v75) and v1.AimAssist.Enabled and v1.AimAssist.HoldMode) then local v293=0;while true do if (v293==0) then IsTargetting=false;v5=nil;break;end end end break;end if (0==v73) then local v240=0;while true do if (v240==1) then v73=1;break;end if (v240==0) then local v311=0;while true do if (v311==0) then v74=v1.Esp.EspKey:lower();if ((v71==v74) and v1.Esp.UseEspKeybind and v1.Esp.HoldMode) then v1.Esp.Enabled=false;end v311=1;end if (v311==1) then v240=1;break;end end end end end end break;end end end);if v1.Silent.AntiAimViewer then v11=false;else v11=true;end v19.InputEnded:connect(function(v76)local v77=0;while true do if (v77==0) then if ((v76.UserInputType==Enum.UserInputType[v1.Silent.TriggerBotKey]) and v1.Silent.UseTriggerBotKeybind) then v1.Silent.TriggerBot=true;end if ((v76.UserInputType==Enum.UserInputType.MouseButton1) and v1.Silent.AntiAimViewer and v14.Character and v14.Character:FindFirstChildWhichIsA("Tool")) then if (v11==false) then local v260=0;while true do if (v260==3) then v16.RenderStepped:Wait();v11=false;break;end if (2==v260) then local v340=0;local v341;while true do if (v340==0) then v341=0;while true do if (v341==0) then mouse1click();v16.RenderStepped:Wait();v341=1;end if (v341==1) then v260=3;break;end end break;end end end if (v260==1) then local v342=0;while true do if (v342==0) then v16.RenderStepped:Wait();v16.RenderStepped:Wait();v342=1;end if (v342==1) then v260=2;break;end end end if (v260==0) then v11=true;mouse1click();v260=1;end end end end break;end end end);v12.Functions.Alive=LPH_NO_VIRTUALIZE(function(v78)local v79=0;local v80;while true do if (v79==0) then v80=0;while true do if (0==v80) then if (v78 and v78.Character and (v78.Character:FindFirstChild("HumanoidRootPart")~=nil) and (v78.Character:FindFirstChild("Humanoid")~=nil) and (v78.Character:FindFirstChild("Head")~=nil)) then return true;end return false;end end break;end end end);v12.Functions.OnScreen=LPH_NO_VIRTUALIZE(function(v81)local v82=0;local v83;local v84;local v85;while true do if (v82==0) then v83=0;v84=nil;v82=1;end if (v82==1) then v85=nil;while true do if (v83==0) then local v241=0;local v242;while true do if (0==v241) then v242=0;while true do if (v242==0) then local v377=0;while true do if (v377==0) then v84,v85=v17:WorldToScreenPoint(v81.Position);return v85;end end end end break;end end end end break;end end end);v12.Functions.GetMagnitudeFromMouse=LPH_NO_VIRTUALIZE(function(v86)local v87=0;local v88;local v89;local v90;while true do if (v87==0) then v88=0;v89=nil;v87=1;end if (v87==1) then v90=nil;while true do local v214=0;local v215;while true do if (v214==0) then v215=0;while true do if (v215==0) then if (v88==1) then return math.huge;end if (v88==0) then local v378=0;local v379;while true do if (v378==0) then v379=0;while true do if (v379==0) then local v464=0;while true do if (v464==1) then v379=1;break;end if (v464==0) then v89,v90=v17:WorldToScreenPoint(v86.Position);if v90 then local v536=0;local v537;local v538;while true do if (v536==0) then v537=0;v538=nil;v536=1;end if (v536==1) then while true do if (v537==0) then local v628=0;local v629;while true do if (v628==0) then v629=0;while true do if (v629==0) then v538=(Vector2.new(v89.X,v89.Y) -Vector2.new(v15.X,v15.Y)).Magnitude;return v538;end end break;end end end end break;end end end v464=1;end end end if (v379==1) then v88=1;break;end end break;end end end break;end end break;end end end break;end end end);v12.Functions.RandomVec=LPH_NO_VIRTUALIZE(function(v91,v92)return (Vector3.new(v20( -v91,v91),v20( -v91,v91),v20( -v91,v91)) * v92) or 1 ;end);v12.Functions.RayCastCheck=LPH_NO_VIRTUALIZE(function(v93,v94)local v95=0;local v96;local v97;local v98;local v99;local v100;local v101;while true do if (v95==2) then v100=nil;v101=nil;v95=3;end if (3==v95) then while true do if (v96==0) then local v243=0;while true do if (v243==1) then v96=1;break;end if (v243==0) then v97=0;v98=nil;v243=1;end end end if (v96==2) then v101=nil;while true do local v261=0;local v262;while true do if (v261==0) then v262=0;while true do if (v262==1) then if (v97==1) then local v424=0;local v425;while true do if (v424==0) then v425=0;while true do if (0==v425) then local v510=0;while true do if (v510==0) then v100=RaycastParams.new();v100.FilterType=Enum.RaycastFilterType.Blacklist;v510=1;end if (v510==1) then v425=1;break;end end end if (v425==1) then v97=2;break;end end break;end end end if (v97==3) then local v426=0;local v427;while true do if (v426==0) then v427=0;while true do if (v427==0) then if v101 then local v539=0;local v540;local v541;local v542;while true do if (v539==1) then v542=nil;while true do local v589=0;local v590;while true do if (0==v589) then v590=0;while true do if (0==v590) then if (v540==1) then return v542;end if (0==v540) then local v667=0;while true do if (0==v667) then v541=v101.Instance;v542= not v541 or Instance.new("Part").IsDescendantOf(v541,v94) ;v667=1;end if (v667==1) then v540=1;break;end end end break;end end break;end end end break;end if (v539==0) then v540=0;v541=nil;v539=1;end end end return false;end end break;end end end break;end if (v262==0) then if (v97==2) then v100.FilterDescendantsInstances={v98,v17};v101=Workspace.Raycast(Workspace,v99,v93.Position-v99 ,v100);v97=3;end if (v97==0) then v98=v14.Character or v14.CharacterAdded.Wait(v14.CharacterAdded) ;v99=v17.CFrame.Position;v97=1;end v262=1;end end break;end end end break;end if (v96==1) then local v244=0;while true do if (v244==0) then v99=nil;v100=nil;v244=1;end if (v244==1) then v96=2;break;end end end end break;end if (v95==0) then v96=0;v97=nil;v95=1;end if (v95==1) then v98=nil;v99=nil;v95=2;end end end);v12.Functions.GetParts=LPH_NO_VIRTUALIZE(function(v102)local v103=0;local v104;while true do if (v103==0) then v104=0;while true do if (v104==0) then if string.find(v102.Name,"Gun") then return;end if table.find({"Part","MeshPart","BasePart"},v102.ClassName) then return true;end break;end end break;end end end);v12.Functions.CalculateChance=LPH_NO_VIRTUALIZE(function(v105)local v106=0;local v107;while true do local v160=0;while true do if (v160==0) then if (v106==1) then return v107<(v105/100) ;end if (v106==0) then local v245=0;while true do if (v245==0) then v105=math.floor(v105);v107=math.floor(Random.new().NextNumber(Random.new(),0,1) * 100 )/100 ;v245=1;end if (v245==1) then v106=1;break;end end end break;end end end end);v12.Functions.FindCrew=LPH_NO_VIRTUALIZE(function(v108)if (v108:FindFirstChild("DataFolder") and v108.DataFolder:FindFirstChild("Information") and v108.DataFolder.Information:FindFirstChild("Crew") and v14:FindFirstChild("DataFolder") and v14.DataFolder:FindFirstChild("Information") and v14.DataFolder.Information:FindFirstChild("Crew")) then if ((v14.DataFolder.Information:FindFirstChild("Crew").Value~=nil) and (v108.DataFolder.Information:FindFirstChild("Crew").Value~=nil) and (v108.DataFolder.Information:FindFirstChild("Crew").Value~="") and (v14.DataFolder.Information:FindFirstChild("Crew").Value~="")) then return true;end end return false;end);v12.Functions.GetGunName=LPH_NO_VIRTUALIZE(function(v109)local v110=0;local v111;while true do if (v110==0) then v111=string.split(string.split(v109,"[")[2],"]")[1];return v111;end end end);v12.Functions.GetCurrentWeaponName=LPH_NO_VIRTUALIZE(function()local v112=0;while true do if (v112==0) then local v191=0;while true do if (v191==0) then if (v14.Character and v14.Character:FindFirstChildWhichIsA("Tool")) then local v294=0;local v295;local v296;while true do if (v294==1) then while true do if (v295==0) then v296=v14.Character:FindFirstChildWhichIsA("Tool");if (string.find(v296.Name,"%[") and string.find(v296.Name,"%]") and  not string.find(v296.Name,"Wallet") and  not string.find(v296.Name,"Phone")) then return v12.Functions.GetGunName(v296.Name);end break;end end break;end if (v294==0) then v295=0;v296=nil;v294=1;end end end return nil;end end end end end);v12.Functions.NewDrawing=LPH_NO_VIRTUALIZE(function(v113,v114)local v115=0;local v116;local v117;local v118;while true do if (v115==1) then v118=nil;while true do if (v116==1) then while true do local v263=0;local v264;while true do if (v263==0) then v264=0;while true do if (v264==0) then if (v117==0) then local v430=0;local v431;while true do if (v430==0) then v431=0;while true do if (v431==1) then v117=1;break;end if (v431==0) then local v511=0;while true do if (v511==0) then v118=Drawing.new(v113);for v556,v557 in next,v114 or {}  do v118[v556]=v557;end v511=1;end if (v511==1) then v431=1;break;end end end end break;end end end if (v117==1) then return v118;end break;end end break;end end end break;end if (v116==0) then v117=0;v118=nil;v116=1;end end break;end if (0==v115) then v116=0;v117=nil;v115=1;end end end);v12.Functions.NewPlayer=LPH_NO_VIRTUALIZE(function(v119)v12.EspPlayers[v119]={Name=v12.Functions.NewDrawing("Text",{Color=Color3.fromRGB(255,2550,255),Outline=true,Visible=false,Center=true,Size=13,Font=0}),BoxOutline=v12.Functions.NewDrawing("Square",{Color=Color3.fromRGB(0,0,0),Thickness=3,Visible=false}),Box=v12.Functions.NewDrawing("Square",{Color=Color3.fromRGB(255,255,255),Thickness=1,Visible=false}),HealthBarOutline=v12.Functions.NewDrawing("Line",{Color=Color3.fromRGB(0,0,0),Thickness=3,Visible=false}),HealthBar=v12.Functions.NewDrawing("Line",{Color=Color3.fromRGB(0,255,0),Thickness=1,Visible=false}),HealthText=v12.Functions.NewDrawing("Text",{Color=Color3.fromRGB(0,255,0),Outline=true,Visible=false,Center=true,Size=13,Font=0}),Distance=v12.Functions.NewDrawing("Text",{Color=Color3.fromRGB(255,255,255),Outline=true,Visible=false,Center=true,Size=13,Font=0})};end);v12.Functions.GetClosestBodyPart=LPH_NO_VIRTUALIZE(function(v121)local v122=math.huge;local v123=nil;local v124={};if  not (v121 and v121:IsA("Model")) then return v123;end local v125=v121:GetChildren();for v161,v162 in pairs(v125) do if (v12.Functions.GetParts(v162) and v12.Functions.OnScreen(v162)) then local v192=0;local v193;local v194;while true do if (v192==0) then v193=0;v194=nil;v192=1;end if (1==v192) then while true do if (0==v193) then v194=0;while true do if (v194==0) then table.insert(v124,v162);for v393,v394 in pairs(v124) do local v395=0;local v396;local v397;while true do if (1==v395) then while true do if (v396==0) then v397=v12.Functions.GetMagnitudeFromMouse(v394);if (v397<v122) then local v512=0;local v513;while true do if (0==v512) then v513=0;while true do if (v513==0) then v123=v394;v122=v397;break;end end break;end end end break;end end break;end if (v395==0) then v396=0;v397=nil;v395=1;end end end break;end end break;end end break;end end end end return v123;end);v12.Functions.GetClosestPointOfPart=LPH_NO_VIRTUALIZE(function(v126)local v127=0;local v128;local v129;while true do if (0==v127) then local v195=0;while true do if (v195==0) then v128=0;v129=nil;v195=1;end if (1==v195) then v127=1;break;end end end if (v127==1) then while true do if (0==v128) then local v246=0;while true do if (v246==0) then local v312=0;while true do if (v312==1) then v246=1;break;end if (v312==0) then v129=nil;if (v126~=nil) then local v416=0;local v417;local v418;local v419;local v420;while true do if (v416==2) then while true do if (1==v417) then v129=v126.CFrame * Vector3.new(math.clamp(v420.X, -v419.X,v419.X),math.clamp(v420.Y, -v419.Y,v419.Y),math.clamp(v420.Z, -v419.Z,v419.Z)) ;break;end if (v417==0) then local v489=0;while true do if (1==v489) then v417=1;break;end if (v489==0) then v418,v419=v15.Hit.Position,v126.Size * 0.5 ;v420=v126.CFrame:PointToObjectSpace(v15.Hit.Position);v489=1;end end end end break;end if (1==v416) then local v452=0;while true do if (v452==0) then v419=nil;v420=nil;v452=1;end if (v452==1) then v416=2;break;end end end if (v416==0) then local v453=0;while true do if (v453==0) then v417=0;v418=nil;v453=1;end if (v453==1) then v416=1;break;end end end end end v312=1;end end end if (v246==1) then v128=1;break;end end end if (v128==1) then return v129;end end break;end end end);v12.Functions.GetClosestPlayer=LPH_NO_VIRTUALIZE(function()local v130=nil;local v131=math.huge;local v132=v12.Functions.CalculateChance(v1.Silent.HitChance);if  not v132 then return nil;end for v163,v164 in pairs(v13:GetPlayers()) do if (v164.Character and (v164~=v14) and v164.Character:FindFirstChild("HumanoidRootPart")) then local v196=0;local v197;while true do if (v196==2) then local v247=0;while true do if (v247==1) then v196=3;break;end if (v247==0) then if (v1.Both.VisibleCheck and v164.Character:FindFirstChild("Head")) then if (v164.Character.Head.Transparency>0.5) then continue;end end if (v1.Both.CrewCheck and v12.Functions.FindCrew(v164) and (v164.DataFolder.Information:FindFirstChild("Crew").Value==v14.DataFolder.Information:FindFirstChild("Crew").Value)) then continue;end v247=1;end end end if (v196==4) then v197=v12.Functions.GetMagnitudeFromMouse(v164.Character.HumanoidRootPart);if ((v197<v131) and ((v12.Drawing.SilentCircle.Radius + 10)>v197)) then local v297=0;local v298;while true do if (v297==0) then v298=0;while true do if (0==v298) then v131=v197;v130=v164;break;end end break;end end end break;end if (v196==3) then if v1.Both.TeamCheck then if (v164.Team~=v14.Team) then continue;end end if v1.Both.FriendCheck then if  not table.find(v12.Friends,v164.UserId) then continue;end end v196=4;end if (v196==0) then if  not v12.Functions.OnScreen(v164.Character.HumanoidRootPart) then continue;end if (v1.Silent.WallCheck and  not v12.Functions.RayCastCheck(v164.Character.HumanoidRootPart,v164.Character)) then continue;end v196=1;end if (v196==1) then if (v1.Silent.CheckIf_KO and v164.Character:FindFirstChild("BodyEffects")) then local v299=0;local v300;local v301;local v302;local v303;while true do if (v299==1) then v302=nil;v303=nil;v299=2;end if (v299==2) then while true do if (v300==1) then v303=nil;while true do if (v301==0) then local v454=0;while true do if (0==v454) then v302=v164.Character.BodyEffects:FindFirstChild("K.O").Value;v303=v164.Character:FindFirstChild("GRABBING_CONSTRAINT")~=nil ;v454=1;end if (1==v454) then v301=1;break;end end end if (v301==1) then if (v302 or v303) then continue;end break;end end break;end if (v300==0) then v301=0;v302=nil;v300=1;end end break;end if (v299==0) then v300=0;v301=nil;v299=1;end end end if (v1.Silent.CheckIf_TargetDeath and v164.Character:FindFirstChild("Humanoid")) then if (v164.Character.Humanoid.health<4) then continue;end end v196=2;end end end end v4=v130;end);v12.Functions.GetClosestPlayer2=LPH_NO_VIRTUALIZE(function()local v133=nil;local v134=nil;local v135=math.huge;for v165,v166 in pairs(v13:GetPlayers()) do if (v166.Character and (v166~=v14) and v166.Character:FindFirstChild("HumanoidRootPart")) then if  not v12.Functions.OnScreen(v166.Character.HumanoidRootPart) then continue;end if (v1.AimAssist.WallCheck and  not v12.Functions.RayCastCheck(v166.Character.HumanoidRootPart,v166.Character)) then continue;end local v198=v12.Functions.GetMagnitudeFromMouse(v166.Character.HumanoidRootPart);if (v198<v135) then local v226=0;local v227;while true do if (v226==0) then v227=0;while true do if (v227==0) then local v358=0;while true do if (v358==0) then if (v1.AimAssist.UseCircleRadius and ((v12.Drawing.AimAssistCircle.Radius + 10)<v198)) then continue;end v135=v198;v358=1;end if (v358==1) then v227=1;break;end end end if (v227==1) then v133=v166;break;end end break;end end end end end if v12.Functions.Alive(v133) then local v179=0;local v180;while true do if (v179==0) then v180=0;while true do if (v180==0) then if v1.Both.VisibleCheck then if (v133.Character.Head.Transparency>0.5) then return nil;end end if (v1.Both.CrewCheck and v12.Functions.FindCrew(v133) and (v133.DataFolder.Information:FindFirstChild("Crew").Value==v14.DataFolder.Information:FindFirstChild("Crew").Value)) then return nil;end break;end end break;end end end if (v1.Both.TeamCheck and v133) then if (v133.Team==v14.Team) then return nil;end end if v1.Both.FriendCheck then if table.find(v12.Friends,v133.UserId) then return nil;end end v5=v133;end);local v43=nil;v43=hookmetamethod(game,"__index",LPH_NO_VIRTUALIZE(function(v136,v137)local v138=0;while true do if (v138==0) then if ( not checkcaller() and v15 and (v136==v15) and (v137=="Hit") and v1.Silent.Enabled and v11) then if (v12.Functions.Alive(v4) and v13[tostring(v4)].Character:FindFirstChild(v1.Silent.Part)) then local v265=0;local v266;local v267;local v268;local v269;while true do if (v265==4) then if (v267~=nil) then local v380=0;local v381;while true do if (v380==0) then v381=0;while true do if (v381==0) then if v6 then local v491=0;local v492;while true do if (v491==0) then v492=v269 * 16 ;v266=v267 + (v492 * v1.Silent.PredictionVelocity) ;break;end end elseif v8 then v266=v267 + (Vector3.new(v268.X,0,v268.Z) * v1.Silent.PredictionVelocity) ;elseif v10 then v266=v267 + (Vector3.new(v268.X,v268.Y * v1.Silent.AntiGroundValue ,v268.Z) * v1.Silent.PredictionVelocity) ;elseif v1.Silent.PredictMovement then v266=v267 + (Vector3.new(v268.X,v268.Y * 0.5 ,v268.Z) * v1.Silent.PredictionVelocity) ;else v266=v267;end if v1.Silent.Humanize then local v493=0;local v494;local v495;while true do if (0==v493) then v494=0;v495=nil;v493=1;end if (1==v493) then while true do if (v494==0) then v495=v1.Silent.HumanizeValue;v266=v266 + v12.Functions.RandomVec(v495,0.01) ;break;end end break;end end end break;end end break;end end end if (v266~=nil) then return (v137=="Hit") and v266 ;end break;end if (v265==2) then local v343=0;local v344;while true do if (v343==0) then v344=0;while true do if (v344==1) then v265=3;break;end if (v344==0) then local v442=0;while true do if (v442==1) then v344=1;break;end if (v442==0) then if v1.Silent.ClosestPoint then v267=v3;else v267=v13[tostring(v4)].Character[v1.Silent.Part].CFrame;end if v1.Both.DetectDesync then local v515=0;local v516;local v517;local v518;while true do if (v515==0) then v516=0;v517=nil;v515=1;end if (v515==1) then v518=nil;while true do if (v516==1) then if (v517>v1.Both.DesyncDetection) then v6=true;elseif ((v517<1) and (v518>0.01)) then v6=true;elseif ((v517>5) and (v518<0.01)) then v6=true;else v6=false;end break;end if (v516==0) then v517=v268.magnitude;v518=v269.magnitude;v516=1;end end break;end end else v6=false;end v442=1;end end end end break;end end end if (v265==3) then local v345=0;while true do if (v345==1) then v265=4;break;end if (v345==0) then if v1.Silent.AntiGroundShots then if (v268.Y<v1.Silent.WhenAntiGroundActivate) then v10=true;else v10=false;end end if v1.Both.DetectUnderGround then if (v268.Y<v1.Both.UnderGroundDetection) then v8=true;else v8=false;end else v8=false;end v345=1;end end end if (v265==0) then local v346=0;local v347;while true do if (v346==0) then v347=0;while true do if (v347==0) then v266=nil;v267=nil;v347=1;end if (v347==1) then v265=1;break;end end break;end end end if (v265==1) then local v348=0;while true do if (v348==1) then v265=2;break;end if (v348==0) then local v398=0;while true do if (0==v398) then v268=v13[tostring(v4)].Character.HumanoidRootPart.Velocity;v269=v13[tostring(v4)].Character.Humanoid.MoveDirection;v398=1;end if (v398==1) then v348=1;break;end end end end end end end end return v43(v136,v137);end end end));if ((v1.Macro.Enabled==true) and (v1.Macro.Keybind~=nil)) then local v167=game:GetService("Players").LocalPlayer;local v168=v167:GetMouse();local v169=v1;local v170=v169.Macro.Enabled;local v171=v169.Macro.Keybind;local v172="0.1";v168.KeyDown:Connect(function(v181)if (v181==v171) then local v216=0;local v217;while true do if (v216==0) then v217=0;while true do if (0==v217) then v170= not v170;if v170 then repeat local v399=0;local v400;local v401;while true do if (v399==1) then while true do if (v400==0) then v401=0;while true do if (0==v401) then local v520=0;local v521;while true do if (0==v520) then v521=0;while true do if (v521==0) then game:GetService("RunService").Heartbeat:Wait();game:GetService("VirtualInputManager"):SendMouseWheelEvent(v172,v172,true,game);v521=1;end if (v521==1) then v401=1;break;end end break;end end end if (v401==1) then game:GetService("RunService").Heartbeat:Wait();game:GetService("VirtualInputManager"):SendMouseWheelEvent(v172,v172,false,game);v401=2;end if (v401==2) then game:GetService("RunService").Heartbeat:Wait();break;end end break;end end break;end if (v399==0) then v400=0;v401=nil;v399=1;end end until  not v170 end break;end end break;end end end end);end if (v1.Misc.VibrantGame==true) then loadstring(game:HttpGet("https://raw.githubusercontent.com/appealaccepted/Silent/main/Vibrance"))();end if (v1.Misc.Animation==true) then loadstring(game:HttpGet("https://raw.githubusercontent.com/appealaccepted/Silent/main/AnimationPack"))();end local v44=game:GetService("Players").LocalPlayer;local v45=getgenv().MeowXD.BuyAura.Enabled;local v46=getgenv().MeowXD.BuyAura.Keybind;function getClosestShop()local v139=v44.Character;local v140=v139 and v139:FindFirstChild("HumanoidRootPart") ;if  not v140 then return;end local v141=math.huge;local v142;for v173,v174 in ipairs(game.Workspace.Ignored.Shop:GetDescendants()) do if v174:IsA("BasePart") then local v199=0;local v200;local v201;while true do if (v199==0) then v200=0;v201=nil;v199=1;end if (v199==1) then while true do if (v200==0) then v201=(v140.Position-v174.Position).Magnitude;if (v201<v141) then local v359=0;while true do if (v359==0) then v141=v201;v142=v174;break;end end end break;end end break;end end end end return v142 and v142.Parent ;end game:GetService("UserInputService").InputBegan:Connect(function(v143)if (v45 and (v143.KeyCode==Enum.KeyCode[v46]) and getClosestShop()) then fireclickdetector(getClosestShop().ClickDetector);end end);if getgenv().MeowXD.Misc.AutoLowGFX then for v182,v183 in pairs(workspace:GetDescendants()) do if ((v183.ClassName=="Part") or (v183.ClassName=="SpawnLocation") or (v183.ClassName=="WedgePart") or (v183.ClassName=="Terrain") or (v183.ClassName=="MeshPart")) then v183.Material="Plastic";end end end if getgenv().MeowXD.Misc.MuteBoomBox then local v175=0;local v176;while true do if (v175==1) then local v219=0;local v220;while true do if (v219==0) then v220=0;while true do if (v220==0) then game.Players.LocalPlayer.CharacterAdded:Connect(function()v176();end);game.Players.LocalPlayer.CharacterRemoving:Connect(function()v176();end);v220=1;end if (v220==1) then v175=2;break;end end break;end end end if (v175==2) then v176();break;end if (v175==0) then local v221=0;while true do if (v221==0) then v176=nil;function v176()local v304=0;local v305;while true do if (v304==0) then v305=0;while true do if (v305==0) then wait(5);for v432,v433 in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.MainScreenGui.Crew.Settings.Frame.InnerFrame.List.BoomBox.SwitchFrame.TextButton.MouseButton1Click)) do v433:Fire();end break;end end break;end end end v221=1;end if (v221==1) then v175=1;break;end end end end end local v1=getgenv().MeowXD or {} ;if v1.Fake_NoClip.Enabled then game.Players.LocalPlayer:GetMouse().KeyDown:Connect(function(v184)if (v184==v1.Fake_NoClip.KeyBind) then local v222=0;local v223;local v224;while true do if (v222==1) then while true do if (v223==0) then v224=game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame.lookVector * 2 ;game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame=game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame + v224 ;break;end end break;end if (0==v222) then v223=0;v224=nil;v222=1;end end end end);end v12.Functions.SilentMisc=LPH_NO_VIRTUALIZE(function()local v144=0;while true do if (v144==0) then if (v1.Silent.Enabled and v12.Functions.Alive(v4)) then local v228=0;while true do if (v228==0) then if v1.Silent.UseAirPart then if (v4.Character.Humanoid:GetState()==Enum.HumanoidStateType.Freefall) then v1.Silent.Part=v1.Silent.AirPart;else v1.Silent.Part=v2;end end if v1.Silent.TriggerBot then mouse1click();end break;end end end if v1.Silent.AutoPrediction then local v229=0;local v230;local v231;while true do if (v229==1) then while true do if (v230==0) then v231=math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue());if (v231<10) then v1.Silent.PredictionVelocity=0.07;elseif (v231<20) then v1.Silent.PredictionVelocity=0.1073216;elseif (v231<30) then v1.Silent.PredictionVelocity=0.12183972;elseif (v231<40) then v1.Silent.PredictionVelocity=0.1291293;elseif (v231<50) then v1.Silent.PredictionVelocity=0.13189;elseif (v231<60) then v1.Silent.PredictionVelocity=0.13237;elseif (v231<70) then v1.Silent.PredictionVelocity=0.13419;elseif (v231<80) then v1.Silent.PredictionVelocity=0.13481;elseif (v231<90) then v1.Silent.PredictionVelocity=0.13745;elseif (v231<100) then v1.Silent.PredictionVelocity=0.13913;elseif (v231<110) then v1.Silent.PredictionVelocity=0.1344;elseif (v231<120) then v1.Silent.PredictionVelocity=0.1411;elseif (v231<130) then v1.Silent.PredictionVelocity=0.153271;elseif (v231<140) then v1.Silent.PredictionVelocity=0.1555;elseif (v231<150) then v1.Silent.PredictionVelocity=0.1574;elseif (v231<160) then v1.Silent.PredictionVelocity=0.1663;elseif (v231<170) then v1.Silent.PredictionVelocity=0.1672;elseif (v231<180) then v1.Silent.PredictionVelocity=0.1848;elseif (v231>180) then v1.Silent.PredictionVelocity=0.1865;end break;end end break;end if (v229==0) then v230=0;v231=nil;v229=1;end end end break;end end end);v12.Functions.MouseChanger=LPH_NO_VIRTUALIZE(function()if (v1.AimAssist.Enabled and v12.Functions.Alive(v5) and v13[tostring(v5)].Character:FindFirstChild(v1.AimAssist.Part) and v12.Functions.OnScreen(v13[tostring(v5)].Character[v1.AimAssist.Part])) then local v185=0;local v186;local v187;local v188;local v189;while true do if (v185==0) then v186=nil;v187=v13[tostring(v5)].Character[v1.AimAssist.Part].Position;v188=v13[tostring(v5)].Character[v1.AimAssist.Part].Velocity;v185=1;end if (v185==1) then v189=v13[tostring(v5)].Character.Humanoid.MoveDirection;if v1.Both.DetectDesync then local v270=0;local v271;local v272;local v273;local v274;while true do if (v270==2) then while true do if (v271==1) then v274=nil;while true do if (v272==0) then local v445=0;while true do if (v445==1) then v272=1;break;end if (v445==0) then v273=v188.magnitude;v274=v189.magnitude;v445=1;end end end if (v272==1) then if (v273>v1.Both.DesyncDetection) then v7=true;elseif ((v273<1) and (v274>0.01)) then v7=true;elseif ((v273>5) and (v274<0.01)) then v7=true;else v7=false;end break;end end break;end if (v271==0) then v272=0;v273=nil;v271=1;end end break;end if (0==v270) then v271=0;v272=nil;v270=1;end if (v270==1) then v273=nil;v274=nil;v270=2;end end else v7=false;end if v1.Both.DetectUnderGround then if (v188.Y<v1.Both.UnderGroundDetection) then v9=true;else v9=false;end else v9=false;end v185=2;end if (v185==2) then local v235=0;while true do if (v235==0) then if v12.Functions.Alive(v14) then local v350=0;local v351;while true do if (v350==0) then v351=0;while true do if (v351==0) then if v1.AimAssist.DisableLocalDeath then if (v14.Character.Humanoid.health<4) then local v496=0;local v497;while true do if (v496==0) then v497=0;while true do if (v497==0) then local v586=0;local v587;while true do if (v586==0) then v587=0;while true do if (1==v587) then v497=1;break;end if (v587==0) then local v652=0;while true do if (v652==1) then v587=1;break;end if (v652==0) then v5=nil;IsTargetting=false;v652=1;end end end end break;end end end if (v497==1) then return;end end break;end end end end if v1.AimAssist.DisableOutSideCircle then local v465=0;local v466;while true do if (0==v465) then v466=v12.Functions.GetMagnitudeFromMouse(v5.Character.HumanoidRootPart);if (v12.Drawing.AimAssistCircle.Radius<v466) then local v545=0;local v546;while true do if (v545==0) then v546=0;while true do local v594=0;local v595;while true do if (v594==0) then v595=0;while true do if (v595==0) then if (v546==1) then return;end if (v546==0) then local v669=0;local v670;while true do if (v669==0) then v670=0;while true do if (v670==0) then v5=nil;IsTargetting=false;v670=1;end if (v670==1) then v546=1;break;end end break;end end end break;end end break;end end end break;end end end break;end end end break;end end break;end end end if (v1.AimAssist.DisableOn_KO and v5.Character:FindFirstChild("BodyEffects")) then local v352=0;local v353;local v354;while true do if (v352==1) then if (v353 or v354) then v5=nil;IsTargetting=false;return;end break;end if (v352==0) then local v403=0;local v404;while true do if (v403==0) then v404=0;while true do if (v404==1) then v352=1;break;end if (v404==0) then local v476=0;while true do if (v476==0) then v353=v5.Character.BodyEffects:FindFirstChild("K.O").Value;v354=v5.Character:FindFirstChild("GRABBING_CONSTRAINT")~=nil ;v476=1;end if (1==v476) then v404=1;break;end end end end break;end end end end end v235=1;end if (v235==1) then if v1.AimAssist.DisableTargetDeath then if (v5.Character.Humanoid.health<4) then local v385=0;while true do if (v385==0) then local v435=0;while true do if (v435==1) then v385=1;break;end if (v435==0) then v5=nil;IsTargetting=false;v435=1;end end end if (v385==1) then return;end end end end v185=3;break;end end end if (v185==3) then if (v7 and v1.AimAssist.PredictMovement) then local v275=0;local v276;local v277;local v278;while true do if (v275==1) then v278=nil;while true do if (v276==1) then while true do if (v277==0) then v278=v189 * 16 ;v186=v17:WorldToScreenPoint(v187 + (v278 * v1.AimAssist.PredictionVelocity) );break;end end break;end if (v276==0) then v277=0;v278=nil;v276=1;end end break;end if (v275==0) then v276=0;v277=nil;v275=1;end end elseif (v9 and v1.AimAssist.PredictMovement) then v186=v17:WorldToScreenPoint(v187 + (Vector3.new(v188.X,0,v188.Z) * v1.AimAssist.PredictionVelocity) );elseif v1.AimAssist.PredictMovement then if (v1.AimAssist.UseShake and v12.Functions.Alive(v14)) then local v405=0;local v406;local v407;while true do if (v405==1) then v186=v17:WorldToScreenPoint(v187 + (v188 * v1.AimAssist.PredictionVelocity) + v12.Functions.RandomVec(v407 * v406 ,0.1) );break;end if (v405==0) then v406=v1.AimAssist.ShakeValue/100 ;v407=math.ceil((v187-v14.Character.HumanoidRootPart.Position).Magnitude);v405=1;end end else v186=v17:WorldToScreenPoint(v187 + (v188 * v1.AimAssist.PredictionVelocity) );end elseif (v1.AimAssist.UseShake and v12.Functions.Alive(v14)) then local v408=0;local v409;local v410;local v411;while true do if (v408==1) then v411=nil;while true do if (0==v409) then local v477=0;while true do if (v477==1) then v409=1;break;end if (v477==0) then local v523=0;while true do if (0==v523) then v410=v1.AimAssist.ShakeValue/100 ;v411=math.ceil((v187-v14.Character.HumanoidRootPart.Position).Magnitude);v523=1;end if (1==v523) then v477=1;break;end end end end end if (v409==1) then v186=v17:WorldToScreenPoint(v187 + v12.Functions.RandomVec(v411 * v410 ,0.1) );break;end end break;end if (v408==0) then local v446=0;while true do if (0==v446) then v409=0;v410=nil;v446=1;end if (v446==1) then v408=1;break;end end end end else v186=v17:WorldToScreenPoint(v187);end if (v186~=nil) then local v279=0;local v280;local v281;local v282;local v283;while true do if (v279==2) then while true do if (v280==0) then v281=0;v282=nil;v280=1;end if (1==v280) then v283=nil;while true do if (v281==0) then local v447=0;local v448;while true do if (0==v447) then v448=0;while true do if (v448==0) then local v524=0;while true do if (v524==0) then v282=(v186.X-v15.X) * v1.AimAssist.Smoothness_X ;v283=(v186.Y-v15.Y) * v1.AimAssist.Smoothness_Y ;v524=1;end if (v524==1) then v448=1;break;end end end if (1==v448) then v281=1;break;end end break;end end end if (v281==1) then mousemoverel(v282,v283);break;end end break;end end break;end if (v279==0) then v280=0;v281=nil;v279=1;end if (v279==1) then v282=nil;v283=nil;v279=2;end end end break;end end end end);v12.Functions.UpdateFOV=LPH_NO_VIRTUALIZE(function()local v145=0;local v146;while true do if (v145==0) then v146=0;while true do if (v146==2) then local v248=0;while true do if (v248==0) then v12.Drawing.SilentCircle.Color=v1.SilentFov.Color;v12.Drawing.SilentCircle.Filled=v1.SilentFov.Filled;v248=1;end if (v248==2) then v146=3;break;end if (v248==1) then local v318=0;while true do if (v318==0) then v12.Drawing.SilentCircle.Transparency=v1.SilentFov.Transparency;v12.Drawing.SilentCircle.Position=Vector2.new(v15.X,v15.Y + v18:GetGuiInset().Y );v318=1;end if (v318==1) then v248=2;break;end end end end end if (v146==1) then local v249=0;while true do if (v249==1) then v12.Drawing.AimAssistCircle.Radius=v1.AimAssistFov.Radius * 3 ;v12.Drawing.SilentCircle.Visible=v1.SilentFov.Visible;v249=2;end if (0==v249) then v12.Drawing.AimAssistCircle.Transparency=v1.AimAssistFov.Transparency;v12.Drawing.AimAssistCircle.Position=Vector2.new(v15.X,v15.Y + v18:GetGuiInset().Y );v249=1;end if (v249==2) then v146=2;break;end end end if (0==v146) then if ( not v12.Drawing.SilentCircle and  not v12.Drawing.AimAssistCircle) then return v12.Drawing.SilentCircle and v12.Drawing.AimAssistCircle ;end v12.Drawing.AimAssistCircle.Visible=v1.AimAssistFov.Visible;v12.Drawing.AimAssistCircle.Filled=v1.AimAssistFov.Filled;v12.Drawing.AimAssistCircle.Color=v1.AimAssistFov.Color;v146=1;end if (v146==3) then v12.Drawing.SilentCircle.Radius=v1.SilentFov.Radius * 3 ;if (v1.RangeFov.Enabled or v1.GunFov.Enabled) then local v306=0;local v307;while true do if (1==v306) then if v1.RangeFov.Enabled then local v412=0;local v413;while true do if (0==v412) then v413=v1.RangeFov[v307];if (v413~=nil) then if (v12.Functions.Alive(v4) and v12.Functions.Alive(v14)) then local v498=0;local v499;local v500;while true do if (v498==0) then v499=0;v500=nil;v498=1;end if (1==v498) then while true do if (v499==0) then v500=(v4.Character.HumanoidRootPart.Position-v14.Character.HumanoidRootPart.Position).Magnitude;if (v500<v1.RangeFov.Close_Activation) then v1.SilentFov.Radius=v413.Close;elseif (v500<v1.RangeFov.Medium_Activation) then v1.SilentFov.Radius=v413.Med;elseif (v500<v1.RangeFov.Far_Activation) then v1.SilentFov.Radius=v413.Far;end break;end end break;end end end end break;end end end break;end if (v306==0) then local v360=0;local v361;while true do if (v360==0) then v361=0;while true do if (0==v361) then local v456=0;while true do if (v456==0) then v307=v12.Functions.GetCurrentWeaponName();if v1.GunFov.Enabled then local v525=0;local v526;while true do if (v525==0) then v526=v1.GunFov[v307];if (v526~=nil) then v1.SilentFov.Radius=v526.Fov;end break;end end end v456=1;end if (v456==1) then v361=1;break;end end end if (v361==1) then v306=1;break;end end break;end end end end end break;end end break;end end end);v12.Functions.UpdateEsp=LPH_NO_VIRTUALIZE(function()for v177,v178 in pairs(v12.EspPlayers) do if (v1.Esp.Enabled and (v177~=v14) and v177.Character and v177.Character:FindFirstChild("Humanoid") and v177.Character:FindFirstChild("HumanoidRootPart") and v177.Character:FindFirstChild("Head")) then local v202=0;local v203;local v204;local v205;local v206;local v207;local v208;local v209;local v210;local v211;while true do if (v202==2) then v207=nil;v208=nil;v202=3;end if (0==v202) then local v257=0;while true do if (v257==0) then v203=0;v204=nil;v257=1;end if (v257==1) then v202=1;break;end end end if (v202==1) then v205=nil;v206=nil;v202=2;end if (v202==4) then v211=nil;while true do if (v203==3) then v211=v209.Y + v210.Y + 1 ;if v207 then local v362=0;local v363;while true do if (v362==0) then v363=0;while true do if (v363==2) then if v1.Esp.HealthText.Enabled then local v478=0;local v479;while true do if (v478==0) then v479=0;while true do if (v479==1) then v178.HealthText.Color=v1.Esp.HealthText.Color;v178.HealthText.OutlineColor=Color3.fromRGB(0,0,0);v479=2;end if (v479==2) then v178.HealthText.Outline=v1.Esp.HealthText.OutLine;v178.HealthText.Font=0;v479=3;end if (v479==3) then v178.HealthText.Size=16;v178.HealthText.Visible=true;break;end if (v479==0) then local v569=0;while true do if (v569==1) then v479=1;break;end if (v569==0) then v178.HealthText.Text=tostring(math.floor(((v204.Health/v204.MaxHealth) * 100) + 0.5 ));v178.HealthText.Position=Vector2.new(v210.X-20 ,((v210.Y + v209.Y) -(1 * v209.Y)) -1 );v569=1;end end end end break;end end else v178.HealthText.Visible=false;end break;end if (v363==1) then local v457=0;while true do if (v457==0) then if v1.Esp.Box.Enabled then local v527=0;local v528;local v529;while true do if (v527==1) then while true do if (v528==0) then v529=0;while true do if (v529==2) then local v638=0;while true do if (v638==0) then local v658=0;while true do if (v658==0) then v178.Box.Size=v209;v178.Box.Position=v210;v658=1;end if (v658==1) then v638=1;break;end end end if (v638==1) then v529=3;break;end end end if (v529==0) then local v639=0;while true do if (v639==1) then v529=1;break;end if (v639==0) then v178.BoxOutline.Size=v209;v178.BoxOutline.Position=v210;v639=1;end end end if (v529==3) then v178.Box.Color=v1.Esp.Box.Color;v178.Box.Visible=true;break;end if (v529==1) then local v643=0;while true do if (v643==1) then v529=2;break;end if (v643==0) then v178.BoxOutline.Visible=v1.Esp.Box.OutLine;v178.BoxOutline.Color=Color3.fromRGB(0,0,0);v643=1;end end end end break;end end break;end if (v527==0) then v528=0;v529=nil;v527=1;end end else local v530=0;while true do if (0==v530) then v178.BoxOutline.Visible=false;v178.Box.Visible=false;break;end end end if v1.Esp.HealthBar.Enabled then local v531=0;local v532;while true do if (v531==0) then v532=0;while true do if (1==v532) then v178.HealthBar.Color=v1.Esp.HealthBar.Color;v178.HealthBar.Visible=true;v532=2;end if (0==v532) then v178.HealthBar.From=Vector2.new(v210.X-5 ,v210.Y + v209.Y );v178.HealthBar.To=Vector2.new(v178.HealthBar.From.X,v178.HealthBar.From.Y-((v204.Health/v204.MaxHealth) * v209.Y) );v532=1;end if (v532==3) then v178.HealthBarOutline.Color=Color3.fromRGB(0,0,0);v178.HealthBarOutline.Visible=v1.Esp.HealthBar.OutLine;break;end if (v532==2) then local v610=0;while true do if (v610==1) then v532=3;break;end if (v610==0) then v178.HealthBarOutline.From=Vector2.new(v178.HealthBar.From.X,v210.Y + v209.Y + 1 );v178.HealthBarOutline.To=Vector2.new(v178.HealthBar.From.X,(v178.HealthBar.From.Y-(1 * v209.Y)) -1 );v610=1;end end end end break;end end else local v533=0;while true do if (v533==0) then v178.HealthBarOutline.Visible=false;v178.healthBar.Visible=false;break;end end end v457=1;end if (v457==1) then v363=2;break;end end end if (v363==0) then if v1.Esp.Name.Enabled then local v481=0;local v482;while true do if (0==v481) then v482=0;while true do if (v482==3) then v178.Name.Size=16;v178.Name.Visible=true;break;end if (2==v482) then local v576=0;while true do if (0==v576) then local v611=0;while true do if (v611==0) then v178.Name.OutlineColor=Color3.fromRGB(0,0,0);v178.Name.Font=0;v611=1;end if (v611==1) then v576=1;break;end end end if (v576==1) then v482=3;break;end end end if (v482==1) then local v577=0;while true do if (v577==0) then v178.Name.Text=tostring(v177);v178.Name.Color=v1.Esp.Name.Color;v577=1;end if (v577==1) then v482=2;break;end end end if (v482==0) then local v578=0;while true do if (v578==0) then v178.Name.Position=Vector2.new((v209.X/2) + v210.X ,v210.Y-16 );v178.Name.Outline=v1.Esp.Name.OutLine;v578=1;end if (v578==1) then v482=1;break;end end end end break;end end else v178.Name.Visible=false;end if (v1.Esp.Distance.Enabled and v14.Character and v14.Character:FindFirstChild("HumanoidRootPart")) then local v484=0;local v485;while true do if (v484==0) then v485=0;while true do if (1==v485) then local v579=0;local v580;while true do if (v579==0) then v580=0;while true do if (v580==0) then v178.Distance.Text="["   .. math.floor((v205.Position-v14.Character.HumanoidRootPart.Position).Magnitude)   .. "m]" ;v178.Distance.Color=v1.Esp.Distance.Color;v580=1;end if (v580==1) then v485=2;break;end end break;end end end if (v485==4) then v178.Distance.Visible=true;break;end if (v485==2) then local v582=0;while true do if (v582==1) then v485=3;break;end if (0==v582) then v178.Distance.OutlineColor=Color3.fromRGB(0,0,0);v211=v211 + 15 ;v582=1;end end end if (v485==3) then local v583=0;while true do if (v583==0) then v178.Distance.Font=0;v178.Distance.Size=16;v583=1;end if (v583==1) then v485=4;break;end end end if (0==v485) then local v584=0;while true do if (v584==0) then v178.Distance.Position=Vector2.new((v209.X/2) + v210.X ,v211);v178.Distance.Outline=v1.Esp.Distance.OutLine;v584=1;end if (v584==1) then v485=1;break;end end end end break;end end else v178.Distance.Visible=false;end v363=1;end end break;end end else local v364=0;local v365;while true do if (v364==0) then v365=0;while true do if (v365==0) then v178.Name.Visible=false;v178.BoxOutline.Visible=false;v365=1;end if (v365==1) then local v460=0;while true do if (v460==1) then v365=2;break;end if (v460==0) then local v501=0;while true do if (v501==0) then v178.Box.Visible=false;v178.HealthBarOutline.Visible=false;v501=1;end if (v501==1) then v460=1;break;end end end end end if (v365==3) then v178.Distance.Visible=false;break;end if (v365==2) then local v462=0;while true do if (0==v462) then local v502=0;while true do if (v502==0) then v178.HealthBar.Visible=false;v178.HealthText.Visible=false;v502=1;end if (v502==1) then v462=1;break;end end end if (v462==1) then v365=3;break;end end end end break;end end end break;end if (v203==0) then local v325=0;local v326;while true do if (v325==0) then v326=0;while true do if (v326==0) then local v436=0;while true do if (v436==0) then v204=v177.Character.Humanoid;v205=v177.Character.HumanoidRootPart;v436=1;end if (v436==1) then v326=1;break;end end end if (1==v326) then v203=1;break;end end break;end end end if (v203==1) then local v327=0;local v328;while true do if (v327==0) then v328=0;while true do if (v328==1) then v203=2;break;end if (0==v328) then v206,v207=v17:WorldToViewportPoint(v177.Character.HumanoidRootPart.Position);v208=(v17:WorldToViewportPoint(v205.Position-Vector3.new(0,3,0) ).Y-v17:WorldToViewportPoint(v205.Position + Vector3.new(0,2.6,0) ).Y)/2 ;v328=1;end end break;end end end if (v203==2) then local v329=0;while true do if (v329==1) then v203=3;break;end if (v329==0) then v209=Vector2.new(math.floor(v208 * 1.5 ),math.floor(v208 * 1.9 ));v210=Vector2.new(math.floor(v206.X-((v208 * 1.5)/2) ),math.floor(v206.Y-((v208 * 1.6)/2) ));v329=1;end end end end break;end if (v202==3) then v209=nil;v210=nil;v202=4;end end else local v212=0;local v213;while true do if (v212==0) then v213=0;while true do if (v213==3) then v178.Distance.Visible=false;break;end if (v213==2) then local v331=0;local v332;while true do if (v331==0) then v332=0;while true do if (v332==0) then local v437=0;while true do if (0==v437) then v178.HealthBar.Visible=false;v178.HealthText.Visible=false;v437=1;end if (1==v437) then v332=1;break;end end end if (v332==1) then v213=3;break;end end break;end end end if (v213==0) then local v333=0;while true do if (v333==1) then v213=1;break;end if (0==v333) then v178.Name.Visible=false;v178.BoxOutline.Visible=false;v333=1;end end end if (v213==1) then v178.Box.Visible=false;v178.HealthBarOutline.Visible=false;v213=2;end end break;end end end end end);v16.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()local v147=0;while true do if (v147==0) then v12.Functions.GetClosestPlayer();v12.Functions.SilentMisc();v147=1;end if (v147==1) then v12.Functions.MouseChanger();break;end end end));v16.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()local v148=0;local v149;local v150;while true do if (v148==0) then v149=0;v150=nil;v148=1;end if (v148==1) then while true do if (v149==0) then v150=0;while true do if (v150==1) then if (v1.Silent.Enabled and v1.Silent.ClosestPoint and v12.Functions.Alive(v4) and v13[tostring(v4)].Character:FindFirstChild(v1.Silent.Part)) then local v366=0;local v367;local v368;local v369;while true do if (v366==1) then v369=nil;while true do if (v367==0) then v368=0;v369=nil;v367=1;end if (1==v367) then while true do if (v368==0) then v369=v12.Functions.GetClosestPointOfPart(v13[tostring(v4)].Character[v1.Silent.Part]);v3=CFrame.new(v369.X,v369.Y,v369.Z);break;end end break;end end break;end if (v366==0) then v367=0;v368=nil;v366=1;end end end if (v1.AimAssist.Enabled and v12.Functions.Alive(v5) and v1.Silent.ClosestPart and v12.Functions.Alive(v4)) then local v370=0;local v371;local v372;while true do if (v370==0) then v371=0;v372=nil;v370=1;end if (1==v370) then while true do local v438=0;while true do if (v438==0) then if (v371==0) then local v503=0;while true do if (v503==1) then v371=1;break;end if (0==v503) then local v551=0;while true do if (1==v551) then v503=1;break;end if (v551==0) then v372=tostring(v12.Functions.GetClosestBodyPart(v5.Character));if v1.AimAssist.ClosestPart then v1.AimAssist.Part=v372;end v551=1;end end end end end if (1==v371) then local v504=0;local v505;while true do if (v504==0) then v505=0;while true do if (v505==0) then if v1.Silent.ClosestPart then local v625=0;while true do if (v625==0) then v1.Silent.Part=v372;v2=v1.Silent.Part;break;end end end return;end end break;end end end break;end end end break;end end end v150=2;end if (2==v150) then if (v1.AimAssist.Enabled and v1.AimAssist.ClosestPart and v12.Functions.Alive(v5)) then v1.AimAssist.Part=tostring(v12.Functions.GetClosestBodyPart(v5.Character));end if (v1.Silent.Enabled and v1.Silent.ClosestPart and v12.Functions.Alive(v4)) then local v374=0;local v375;while true do if (0==v374) then v375=0;while true do if (v375==0) then v1.Silent.Part=tostring(v12.Functions.GetClosestBodyPart(v4.Character));v2=v1.Silent.Part;break;end end break;end end end break;end if (v150==0) then v12.Functions.UpdateEsp();v12.Functions.UpdateFOV();v150=1;end end break;end end break;end end end));for v151,v152 in ipairs(v13:GetPlayers()) do local v153=0;local v154;while true do if (0==v153) then v154=0;while true do if (v154==0) then if ((v152~=v14) and v14:IsFriendsWith(v152.UserId)) then table.insert(v12.Friends,v152);end v12.Functions.NewPlayer(v152);break;end end break;end end end v13.PlayerAdded:Connect(function(v155)if (v14:IsFriendsWith(v155.UserId)) then table.insert(v12.Friends,v155);end v12.Functions.NewPlayer(v155);end);v13.PlayerRemoving:Connect(function(v156)local v157=0;local v158;local v159;while true do if (v157==0) then v158=0;v159=nil;v157=1;end if (1==v157) then while true do if (v158==1) then for v284,v285 in pairs(v12.EspPlayers[v156]) do v285:Remove();end v12.EspPlayers[v156]=nil;break;end if (v158==0) then local v259=0;while true do if (0==v259) then v159=table.find(v12.Friends,v156);if v159 then table.remove(v12.Friends,v159);end v259=1;end if (v259==1) then v158=1;break;end end end end break;end end end);end)();break;end end break;end end end end
+-- // Checks If The Player Is Alive
+Script.Functions.Alive = LPH_NO_VIRTUALIZE(function(Plr)
+    if Plr and Plr.Character and Plr.Character:FindFirstChild("HumanoidRootPart") ~= nil and Plr.Character:FindFirstChild("Humanoid") ~= nil and Plr.Character:FindFirstChild("Head") ~= nil then
+        return true
+    end
+    return false
+end)
+
+-- // Checks If Player Is On Your Screen
+Script.Functions.OnScreen = LPH_NO_VIRTUALIZE(function(Object)
+    local _, screen = Camera:WorldToScreenPoint(Object.Position)
+    return screen
+end)
+
+-- // Gets Magnitude From Part Position And Mouse
+Script.Functions.GetMagnitudeFromMouse = LPH_NO_VIRTUALIZE(function(Part)
+    local PartPos, OnScreen = Camera:WorldToScreenPoint(Part.Position)
+    if OnScreen then
+        local Magnitude = (Vector2.new(PartPos.X, PartPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+        return Magnitude
+    end
+    return math.huge
+end)
+
+-- // Makes Random Number With Vector3 
+Script.Functions.RandomVec = LPH_NO_VIRTUALIZE(function(Number, Multi)
+    return (Vector3.new(Ran(-Number, Number), Ran(-Number, Number), Ran(-Number, Number)) * Multi or 1)
+end)
+
+-- // Checks If The Player Is Behind A Wall Or Something Else
+Script.Functions.RayCastCheck = LPH_NO_VIRTUALIZE(function(Part, PartDescendant)
+    local Character = Client.Character or Client.CharacterAdded.Wait(Client.CharacterAdded)
+    local Origin = Camera.CFrame.Position
+
+    local RayCastParams = RaycastParams.new()
+    RayCastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    RayCastParams.FilterDescendantsInstances = {Character, Camera}
+
+    local Result = Workspace.Raycast(Workspace, Origin, Part.Position - Origin, RayCastParams)
+    
+    if (Result) then
+        local PartHit = Result.Instance
+        local Visible = (not PartHit or Instance.new("Part").IsDescendantOf(PartHit, PartDescendant))
+        
+        return Visible
+    end
+    return false
+end)
+
+-- // Gets The Part From An Object
+Script.Functions.GetParts = LPH_NO_VIRTUALIZE(function(Object)
+    if string.find(Object.Name, "Gun") then
+        return
+    end
+    if table.find({"Part", "MeshPart", "BasePart"}, Object.ClassName) then
+        return true
+    end
+end)
+
+-- // Random Number To Compare
+Script.Functions.CalculateChance = LPH_NO_VIRTUALIZE(function(Percentage)
+    Percentage = math.floor(Percentage)
+    local chance = math.floor(Random.new().NextNumber(Random.new(), 0, 1) * 100) / 100
+
+    return chance < Percentage / 100
+end)
+
+-- // Check If Crew Folder Is A Thing
+Script.Functions.FindCrew = LPH_NO_VIRTUALIZE(function(Player)
+	if Player:FindFirstChild("DataFolder") and Player.DataFolder:FindFirstChild("Information") and Player.DataFolder.Information:FindFirstChild("Crew") and Client:FindFirstChild("DataFolder") and Client.DataFolder:FindFirstChild("Information") and Client.DataFolder.Information:FindFirstChild("Crew") then
+        if Client.DataFolder.Information:FindFirstChild("Crew").Value ~= nil and Player.DataFolder.Information:FindFirstChild("Crew").Value ~= nil and Player.DataFolder.Information:FindFirstChild("Crew").Value ~= "" and Client.DataFolder.Information:FindFirstChild("Crew").Value ~= "" then 
+			return true
+		end
+	end
+	return false
+end)
+
+-- // Splits The Gun Name And Splits []
+Script.Functions.GetGunName = LPH_NO_VIRTUALIZE(function(Name)
+    local split = string.split(string.split(Name, "[")[2], "]")[1]
+    return split
+end)
+
+-- // Gets Current Gun
+Script.Functions.GetCurrentWeaponName = LPH_NO_VIRTUALIZE(function()
+    if Client.Character and Client.Character:FindFirstChildWhichIsA("Tool") then
+       local Tool =  Client.Character:FindFirstChildWhichIsA("Tool")
+       if string.find(Tool.Name, "%[") and string.find(Tool.Name, "%]") and not string.find(Tool.Name, "Wallet") and not string.find(Tool.Name, "Phone") then
+          return Script.Functions.GetGunName(Tool.Name)
+       end
+    end
+    return nil
+end)
+
+-- // Drawing Function With Property Attached
+Script.Functions.NewDrawing = LPH_NO_VIRTUALIZE(function(Type, Properties)
+    local NewDrawing = Drawing.new(Type)
+
+    for i,v in next, Properties or {} do
+        NewDrawing[i] = v
+    end
+    return NewDrawing
+end)
+
+-- // Draws For The New Players Joining For Esp
+Script.Functions.NewPlayer = LPH_NO_VIRTUALIZE(function(Player)
+    Script.EspPlayers[Player] = {
+        Name = Script.Functions.NewDrawing("Text", {Color = Color3.fromRGB(255,2550, 255), Outline = true, Visible = false, Center = true, Size = 13, Font = 0}),
+        BoxOutline = Script.Functions.NewDrawing("Square", {Color = Color3.fromRGB(0, 0, 0), Thickness = 3, Visible = false}),
+        Box = Script.Functions.NewDrawing("Square", {Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Visible = false}),
+        HealthBarOutline = Script.Functions.NewDrawing("Line", {Color = Color3.fromRGB(0, 0, 0), Thickness = 3, Visible = false}),
+        HealthBar = Script.Functions.NewDrawing("Line", {Color = Color3.fromRGB(0, 255, 0), Thickness = 1, Visible = false}),
+        HealthText = Script.Functions.NewDrawing("Text", {Color = Color3.fromRGB(0, 255, 0), Outline = true, Visible = false, Center = true, Size = 13, Font = 0}),
+        Distance = Script.Functions.NewDrawing("Text", {Color = Color3.fromRGB(255, 255, 255), Outline = true, Visible = false, Center = true, Size = 13, Font = 0})
+    }
+end)
+
+-- // Gets The Closest Part From Cursor
+Script.Functions.GetClosestBodyPart = LPH_NO_VIRTUALIZE(function(Char)
+    local Distance = math.huge
+    local ClosestPart = nil
+    local Filterd = {}
+
+    if not (Char and Char:IsA("Model")) then
+        return ClosestPart
+    end
+
+    local Parts = Char:GetChildren()
+    for _, v in pairs(Parts) do
+        if Script.Functions.GetParts(v) and Script.Functions.OnScreen(v) then
+            table.insert(Filterd, v)
+            for _, Part in pairs(Filterd) do                
+                local Magnitude = Script.Functions.GetMagnitudeFromMouse(Part)
+                if Magnitude < Distance then
+                    ClosestPart = Part
+                    Distance = Magnitude
+                end
+            end
+        end
+    end
+    return ClosestPart
+end)
+
+-- // Gets The Closest Point From Cursor
+Script.Functions.GetClosestPointOfPart = LPH_NO_VIRTUALIZE(function(Part)
+    local NearestPosition = nil
+    if Part ~= nil then
+        local Hit, Half = Mouse.Hit.Position, Part.Size * 0.5
+        local Transform = Part.CFrame:PointToObjectSpace(Mouse.Hit.Position)
+        NearestPosition = Part.CFrame * Vector3.new(math.clamp(Transform.X, -Half.X, Half.X),math.clamp(Transform.Y, -Half.Y, Half.Y),math.clamp(Transform.Z, -Half.Z, Half.Z))
+    end
+    return NearestPosition
+end)
+
+-- // Gets The Closest Player For Cursor (Silent Aim)
+Script.Functions.GetClosestPlayer = LPH_NO_VIRTUALIZE(function()
+    local Target = nil
+    local Closest = math.huge
+    local HitChance = Script.Functions.CalculateChance(MeowXD.Silent.HitChance)
+
+    if not HitChance then
+        return nil
+    end
+    for _, v in pairs(Players:GetPlayers()) do
+        if v.Character and v ~= Client and v.Character:FindFirstChild("HumanoidRootPart") then
+            if not Script.Functions.OnScreen(v.Character.HumanoidRootPart) then 
+                continue 
+            end
+            if MeowXD.Silent.WallCheck and not Script.Functions.RayCastCheck(v.Character.HumanoidRootPart, v.Character) then 
+                continue 
+            end
+            if MeowXD.Silent.CheckIf_KO and v.Character:FindFirstChild("BodyEffects") then
+                local KoCheck = v.Character.BodyEffects:FindFirstChild("K.O").Value
+                local Grabbed = v.Character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
+                if KoCheck or Grabbed then
+                    continue
+                end
+            end
+            if MeowXD.Silent.CheckIf_TargetDeath and v.Character:FindFirstChild("Humanoid") then
+                if v.Character.Humanoid.health < 4 then
+                    continue
+                end
+            end
+            if MeowXD.Both.VisibleCheck and v.Character:FindFirstChild("Head") then
+                if v.Character.Head.Transparency > 0.5 then
+                    continue
+                end
+            end
+            if MeowXD.Both.CrewCheck and Script.Functions.FindCrew(v) and v.DataFolder.Information:FindFirstChild("Crew").Value == Client.DataFolder.Information:FindFirstChild("Crew").Value then
+                continue
+            end
+            if MeowXD.Both.TeamCheck then
+                if v.Team ~= Client.Team then
+                    continue
+                end
+            end
+            if MeowXD.Both.FriendCheck then
+                if not table.find(Script.Friends, v.UserId) then
+                    continue
+                end
+            end
+            local Distance = Script.Functions.GetMagnitudeFromMouse(v.Character.HumanoidRootPart)
+
+            if (Distance < Closest and Script.Drawing.SilentCircle.Radius + 10 > Distance) then
+                Closest = Distance
+                Target = v
+            end
+        end
+    end
+
+    SilentTarget = Target
+end)
+
+-- // Gets Closest Player From Mouse (AimAssist)
+Script.Functions.GetClosestPlayer2 = LPH_NO_VIRTUALIZE(function()
+    local Target = nil
+    local Distance = nil
+    local Closest = math.huge
+    
+    for _, v in pairs(Players:GetPlayers()) do
+        if v.Character and v ~= Client and v.Character:FindFirstChild("HumanoidRootPart") then
+            if not Script.Functions.OnScreen(v.Character.HumanoidRootPart) then 
+                continue 
+            end
+            if MeowXD.AimAssist.WallCheck and not Script.Functions.RayCastCheck(v.Character.HumanoidRootPart, v.Character) then 
+                continue 
+            end
+            local Distance = Script.Functions.GetMagnitudeFromMouse(v.Character.HumanoidRootPart)
+
+            if Distance < Closest then
+                if (MeowXD.AimAssist.UseCircleRadius and Script.Drawing.AimAssistCircle.Radius + 10 < Distance) then continue end
+                Closest = Distance
+                Target = v
+            end
+        end
+    end
+
+    if Script.Functions.Alive(Target) then
+		if MeowXD.Both.VisibleCheck then
+			if Target.Character.Head.Transparency > 0.5 then
+				return nil
+			end
+		end
+		if MeowXD.Both.CrewCheck and Script.Functions.FindCrew(Target) and Target.DataFolder.Information:FindFirstChild("Crew").Value == Client.DataFolder.Information:FindFirstChild("Crew").Value then
+			return nil
+		end
+	end
+    if MeowXD.Both.TeamCheck and Target then
+        if Target.Team == Client.Team then
+            return nil
+        end
+    end
+    if MeowXD.Both.FriendCheck then
+        if table.find(Script.Friends, Target.UserId) then
+            return nil
+        end
+    end
+    
+    AimTarget = Target
+end)
+
+-- // Server Side Mouse Position Changer
+local OldIndex = nil 
+OldIndex = hookmetamethod(game, "__index", LPH_NO_VIRTUALIZE(function(self, Index)
+    if not checkcaller() and Mouse and self == Mouse and Index == "Hit" and MeowXD.Silent.Enabled and AntiAimViewer then
+        if Script.Functions.Alive(SilentTarget) and Players[tostring(SilentTarget)].Character:FindFirstChild(MeowXD.Silent.Part) then
+            local EndPoint = nil
+            local TargetCF = nil
+            local TargetVel = Players[tostring(SilentTarget)].Character.HumanoidRootPart.Velocity
+            local TargetMov = Players[tostring(SilentTarget)].Character.Humanoid.MoveDirection
+
+            if MeowXD.Silent.ClosestPoint then
+                TargetCF = ClosestPointCF
+            else
+                TargetCF = Players[tostring(SilentTarget)].Character[MeowXD.Silent.Part].CFrame
+            end
+
+            if MeowXD.Both.DetectDesync then
+                local Magnitude = TargetVel.magnitude
+                local Magnitude2 = TargetMov.magnitude
+                if Magnitude > MeowXD.Both.DesyncDetection then
+                    DetectedDesync = true
+                elseif Magnitude < 1 and Magnitude2 > 0.01 then
+                    DetectedDesync = true
+                elseif Magnitude > 5 and Magnitude2 < 0.01 then
+                    DetectedDesync = true
+                else
+                    DetectedDesync = false
+                end
+            else
+                DetectedDesync = false
+            end
+            if MeowXD.Silent.AntiGroundShots then
+                if TargetVel.Y < MeowXD.Silent.WhenAntiGroundActivate then
+                    DetectedFreeFall = true
+                else
+                    DetectedFreeFall = false
+                end
+            end
+            if MeowXD.Both.DetectUnderGround then 
+                if TargetVel.Y < MeowXD.Both.UnderGroundDetection then            
+                    DetectedUnderGround = true
+                else
+                    DetectedUnderGround = false
+                end
+            else
+                DetectedUnderGround = false
+            end
+            
+            if TargetCF ~= nil then
+                if DetectedDesync then
+                    local MoveDirection = TargetMov * 16
+                    EndPoint = TargetCF + (MoveDirection * MeowXD.Silent.PredictionVelocity)
+                elseif DetectedUnderGround then
+                    EndPoint = TargetCF + (Vector3.new(TargetVel.X, 0, TargetVel.Z) * MeowXD.Silent.PredictionVelocity)
+                elseif DetectedFreeFall then
+                    EndPoint = TargetCF + (Vector3.new(TargetVel.X, (TargetVel.Y * MeowXD.Silent.AntiGroundValue), TargetVel.Z) * MeowXD.Silent.PredictionVelocity)
+                elseif MeowXD.Silent.PredictMovement then
+                    EndPoint = TargetCF + (Vector3.new(TargetVel.X, (TargetVel.Y * 0.5), TargetVel.Z) * MeowXD.Silent.PredictionVelocity)
+                else
+                    EndPoint = TargetCF
+                end
+                if MeowXD.Silent.Humanize then
+                    local HumanizeValue = MeowXD.Silent.HumanizeValue 
+                    EndPoint = (EndPoint + Script.Functions.RandomVec(HumanizeValue, 0.01))
+                end
+            end
+
+            if EndPoint ~= nil then
+                return (Index == "Hit" and EndPoint)
+            end
+        end
+    end
+    return OldIndex(self, Index)
+end))
+
+------ macro shit ------
+if MeowXD.Macro.Enabled == true and MeowXD.Macro.Keybind ~= nil then
+    local Player = game:GetService("Players").LocalPlayer
+    local Mouse = Player:GetMouse()
+    local MeowXD = MeowXD
+
+    local Enabled = MeowXD.Macro.Enabled
+    local MacroKey = MeowXD.Macro.Keybind
+    local Delay = "0.1"
+
+    Mouse.KeyDown:Connect(function(Key)
+        if Key == MacroKey then
+            Enabled = not Enabled
+            if Enabled then
+                repeat
+                    game:GetService("RunService").Heartbeat:Wait()
+                    game:GetService("VirtualInputManager"):SendMouseWheelEvent(Delay, Delay, true, game)
+                    game:GetService("RunService").Heartbeat:Wait()
+                    game:GetService("VirtualInputManager"):SendMouseWheelEvent(Delay, Delay, false, game)
+                    game:GetService("RunService").Heartbeat:Wait()
+                until not Enabled
+            end
+        end
+    end)
+end
+
+if MeowXD.Misc.VibrantGame == true then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/appealaccepted/Silent/main/Vibrance"))()
+end
+
+if MeowXD.Misc.Animation == true then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/appealaccepted/Silent/main/AnimationPack"))()
+end
+
+------ buy aura --------
+local player = game:GetService('Players').LocalPlayer
+local buyAuraEnabled = getgenv().MeowXD.BuyAura.Enabled
+local keybind = getgenv().MeowXD.BuyAura.Keybind
+
+function getClosestShop()
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local studs = math.huge
+    local part
+
+    for _, obj in ipairs(game.Workspace.Ignored.Shop:GetDescendants()) do
+        if obj:IsA('BasePart') then
+            local distance = (root.Position - obj.Position).Magnitude
+            if distance < studs then
+                studs = distance
+                part = obj
+            end
+        end
+    end
+    return part and part.Parent
+end
+
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if buyAuraEnabled and input.KeyCode == Enum.KeyCode[keybind] and getClosestShop() then
+        fireclickdetector(getClosestShop().ClickDetector)
+    end
+end)
+
+if getgenv().MeowXD.Misc.AutoLowGFX then
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v.ClassName == "Part"
+        or v.ClassName == "SpawnLocation"
+        or v.ClassName == "WedgePart"
+        or v.ClassName == "Terrain"
+        or v.ClassName == "MeshPart" then
+            v.Material = "Plastic"
+        end
+    end
+end
+
+if getgenv().MeowXD.Misc.MuteBoomBox then
+    local function FireSwitchButton()
+        wait(5) -- Wait for 5 seconds
+        for i,v in pairs(getconnections(game:GetService("Players").LocalPlayer.PlayerGui.MainScreenGui.Crew.Settings.Frame.InnerFrame.List.BoomBox.SwitchFrame.TextButton.MouseButton1Click)) do
+            v:Fire()
+        end
+    end
+    
+    game.Players.LocalPlayer.CharacterAdded:Connect(function()
+        FireSwitchButton()
+    end)
+    
+    game.Players.LocalPlayer.CharacterRemoving:Connect(function()
+        FireSwitchButton()
+    end)
+    
+    FireSwitchButton()
+end
+
+local MeowXD = getgenv().MeowXD or {}
+
+if MeowXD.Fake_NoClip.Enabled then
+    game.Players.LocalPlayer:GetMouse().KeyDown:Connect(function(KeyPressed)
+        if KeyPressed == MeowXD.Fake_NoClip.KeyBind then
+            local V = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame.lookVector * 2
+            game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame + V
+        end
+    end)
+end
+
+-- // Silent Aim Misc
+Script.Functions.SilentMisc = LPH_NO_VIRTUALIZE(function()
+    if MeowXD.Silent.Enabled and Script.Functions.Alive(SilentTarget) then
+        if MeowXD.Silent.UseAirPart then
+            if SilentTarget.Character.Humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+                   MeowXD.Silent.Part = MeowXD.Silent.AirPart
+            else
+                MeowXD.Silent.Part = OldSilentAimPart
+            end
+        end
+        if MeowXD.Silent.TriggerBot then
+			mouse1click()
+		end
+    end
+    if MeowXD.Silent.AutoPrediction then
+        local ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        if ping < 10 then
+            MeowXD.Silent.PredictionVelocity = 0.07
+        elseif ping < 20 then
+            MeowXD.Silent.PredictionVelocity = 0.1073216
+        elseif ping < 30 then
+            MeowXD.Silent.PredictionVelocity = 0.12183972
+        elseif ping < 40 then
+            MeowXD.Silent.PredictionVelocity = 0.1291293
+        elseif ping < 50 then
+            MeowXD.Silent.PredictionVelocity = 0.13189
+        elseif ping < 60 then
+            MeowXD.Silent.PredictionVelocity = 0.13237
+        elseif ping < 70 then
+            MeowXD.Silent.PredictionVelocity = 0.13419
+        elseif ping < 80 then
+            MeowXD.Silent.PredictionVelocity = 0.13481
+        elseif ping < 90 then
+            MeowXD.Silent.PredictionVelocity = 0.13745
+        elseif ping < 100 then
+            MeowXD.Silent.PredictionVelocity = 0.13913
+        elseif ping < 110 then
+            MeowXD.Silent.PredictionVelocity = 0.1344
+        elseif ping < 120 then
+            MeowXD.Silent.PredictionVelocity = 0.1411
+        elseif ping < 130 then
+            MeowXD.Silent.PredictionVelocity = 0.153271
+        elseif ping < 140 then
+            MeowXD.Silent.PredictionVelocity = 0.1555
+        elseif ping < 150 then
+            MeowXD.Silent.PredictionVelocity = 0.1574
+        elseif ping < 160 then
+            MeowXD.Silent.PredictionVelocity = 0.1663
+        elseif ping < 170 then
+            MeowXD.Silent.PredictionVelocity = 0.1672
+        elseif ping < 180 then
+            MeowXD.Silent.PredictionVelocity = 0.1848
+        elseif ping > 180 then
+            MeowXD.Silent.PredictionVelocity = 0.1865
+        end
+    end
+end)
+
+-- // The AimAssist Mouse Dragging/Check Functions
+Script.Functions.MouseChanger = LPH_NO_VIRTUALIZE(function()
+    if MeowXD.AimAssist.Enabled and Script.Functions.Alive(AimTarget) and Players[tostring(AimTarget)].Character:FindFirstChild(MeowXD.AimAssist.Part) and Script.Functions.OnScreen(Players[tostring(AimTarget)].Character[MeowXD.AimAssist.Part]) then
+        local EndPosition = nil
+        local TargetPos = Players[tostring(AimTarget)].Character[MeowXD.AimAssist.Part].Position
+        local TargetVel = Players[tostring(AimTarget)].Character[MeowXD.AimAssist.Part].Velocity
+        local TargetMov = Players[tostring(AimTarget)].Character.Humanoid.MoveDirection
+
+        if MeowXD.Both.DetectDesync then
+            local Magnitude = TargetVel.magnitude
+            local Magnitude2 = TargetMov.magnitude
+            if Magnitude > MeowXD.Both.DesyncDetection then
+                DetectedDesyncV2 = true
+            elseif Magnitude < 1 and Magnitude2 > 0.01 then
+                DetectedDesyncV2 = true
+            elseif Magnitude > 5 and Magnitude2 < 0.01 then
+                DetectedDesyncV2 = true
+            else
+                DetectedDesyncV2 = false
+            end
+        else
+            DetectedDesyncV2 = false
+        end
+        if MeowXD.Both.DetectUnderGround then 
+            if TargetVel.Y < MeowXD.Both.UnderGroundDetection then            
+                DetectedUnderGroundV2 = true
+            else
+                DetectedUnderGroundV2 = false
+            end
+        else
+            DetectedUnderGroundV2 = false
+        end
+
+        if Script.Functions.Alive(Client) then
+            if MeowXD.AimAssist.DisableLocalDeath then
+                if Client.Character.Humanoid.health < 4 then
+                    AimTarget = nil
+                    IsTargetting = false
+                    return
+                end
+            end
+            if MeowXD.AimAssist.DisableOutSideCircle then
+                local Magnitude = Script.Functions.GetMagnitudeFromMouse(AimTarget.Character.HumanoidRootPart)
+                if Script.Drawing.AimAssistCircle.Radius < Magnitude then
+                    AimTarget = nil
+                    IsTargetting = false
+                    return
+                end
+            end
+        end
+
+        if MeowXD.AimAssist.DisableOn_KO and AimTarget.Character:FindFirstChild("BodyEffects") then 
+            local KoCheck = AimTarget.Character.BodyEffects:FindFirstChild("K.O").Value
+            local Grabbed = AimTarget.Character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
+            if KoCheck or Grabbed then
+                AimTarget = nil
+                IsTargetting = false
+                return
+            end
+        end
+        if MeowXD.AimAssist.DisableTargetDeath then
+            if AimTarget.Character.Humanoid.health < 4 then
+                AimTarget = nil
+                IsTargetting = false
+                return
+            end
+        end
+
+        if DetectedDesyncV2 and MeowXD.AimAssist.PredictMovement then
+            local MoveDirection = TargetMov * 16
+            EndPosition = Camera:WorldToScreenPoint(TargetPos + (MoveDirection * MeowXD.AimAssist.PredictionVelocity))
+        elseif DetectedUnderGroundV2 and MeowXD.AimAssist.PredictMovement then
+            EndPosition = Camera:WorldToScreenPoint(TargetPos + (Vector3.new(TargetVel.X, 0, TargetVel.Z) * MeowXD.AimAssist.PredictionVelocity))
+        elseif MeowXD.AimAssist.PredictMovement then
+            if MeowXD.AimAssist.UseShake and Script.Functions.Alive(Client) then
+                local Shake = MeowXD.AimAssist.ShakeValue / 100
+                local Mag = math.ceil((TargetPos - Client.Character.HumanoidRootPart.Position).Magnitude)
+                EndPosition = Camera:WorldToScreenPoint(TargetPos + (TargetVel * MeowXD.AimAssist.PredictionVelocity) + Script.Functions.RandomVec(Mag * Shake, 0.1))
+            else
+                EndPosition = Camera:WorldToScreenPoint(TargetPos + (TargetVel * MeowXD.AimAssist.PredictionVelocity))
+            end
+        else
+            if MeowXD.AimAssist.UseShake and Script.Functions.Alive(Client) then
+                local Shake = MeowXD.AimAssist.ShakeValue / 100
+                local Mag = math.ceil((TargetPos - Client.Character.HumanoidRootPart.Position).Magnitude)
+                EndPosition = Camera:WorldToScreenPoint(TargetPos + Script.Functions.RandomVec(Mag * Shake, 0.1))
+            else
+                EndPosition = Camera:WorldToScreenPoint(TargetPos)
+            end
+        end
+
+        if EndPosition ~= nil then
+            local InCrementX = (EndPosition.X - Mouse.X) * MeowXD.AimAssist.Smoothness_X
+            local InCrementY = (EndPosition.Y - Mouse.Y) * MeowXD.AimAssist.Smoothness_Y
+            mousemoverel(InCrementX, InCrementY)
+        end
+    end
+end)
+
+--// Update Size/Position Of Circle
+Script.Functions.UpdateFOV = LPH_NO_VIRTUALIZE(function()
+    if (not Script.Drawing.SilentCircle and not Script.Drawing.AimAssistCircle) then
+        return Script.Drawing.SilentCircle and Script.Drawing.AimAssistCircle
+    end
+    
+    Script.Drawing.AimAssistCircle.Visible = MeowXD.AimAssistFov.Visible
+    Script.Drawing.AimAssistCircle.Filled = MeowXD.AimAssistFov.Filled
+    Script.Drawing.AimAssistCircle.Color = MeowXD.AimAssistFov.Color
+    Script.Drawing.AimAssistCircle.Transparency = MeowXD.AimAssistFov.Transparency
+    Script.Drawing.AimAssistCircle.Position = Vector2.new(Mouse.X, Mouse.Y + GuiS:GetGuiInset().Y)
+	Script.Drawing.AimAssistCircle.Radius = MeowXD.AimAssistFov.Radius * 3
+    
+    Script.Drawing.SilentCircle.Visible = MeowXD.SilentFov.Visible
+    Script.Drawing.SilentCircle.Color = MeowXD.SilentFov.Color
+    Script.Drawing.SilentCircle.Filled = MeowXD.SilentFov.Filled
+    Script.Drawing.SilentCircle.Transparency = MeowXD.SilentFov.Transparency
+    Script.Drawing.SilentCircle.Position = Vector2.new(Mouse.X, Mouse.Y + GuiS:GetGuiInset().Y)
+	Script.Drawing.SilentCircle.Radius = MeowXD.SilentFov.Radius * 3
+	
+    if MeowXD.RangeFov.Enabled or MeowXD.GunFov.Enabled then
+		local CurrentGun = Script.Functions.GetCurrentWeaponName()
+		if MeowXD.GunFov.Enabled then
+			local WeaponSettings = MeowXD.GunFov[CurrentGun]
+			if WeaponSettings ~= nil then
+				MeowXD.SilentFov.Radius = WeaponSettings.Fov
+			end
+		end
+		if MeowXD.RangeFov.Enabled then
+			local WeaponSettingsV2 = MeowXD.RangeFov[CurrentGun]
+			if WeaponSettingsV2 ~= nil then
+				if Script.Functions.Alive(SilentTarget) and Script.Functions.Alive(Client) then
+                    local Magnitude = (SilentTarget.Character.HumanoidRootPart.Position - Client.Character.HumanoidRootPart.Position).Magnitude
+					if Magnitude < MeowXD.RangeFov.Close_Activation then
+						MeowXD.SilentFov.Radius = WeaponSettingsV2.Close
+					elseif Magnitude < MeowXD.RangeFov.Medium_Activation then
+						MeowXD.SilentFov.Radius = WeaponSettingsV2.Med
+					elseif Magnitude < MeowXD.RangeFov.Far_Activation then
+						MeowXD.SilentFov.Radius = WeaponSettingsV2.Far
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- // Updates Esp Posistions
+Script.Functions.UpdateEsp = LPH_NO_VIRTUALIZE(function()
+    for i,v in pairs(Script.EspPlayers) do
+        if MeowXD.Esp.Enabled and i ~= Client and i.Character and i.Character:FindFirstChild("Humanoid") and i.Character:FindFirstChild("HumanoidRootPart") and i.Character:FindFirstChild("Head") then
+            local Hum = i.Character.Humanoid
+            local Hrp = i.Character.HumanoidRootPart
+            
+            local Vector, OnScreen = Camera:WorldToViewportPoint(i.Character.HumanoidRootPart.Position)
+            local Size = (Camera:WorldToViewportPoint(Hrp.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(Hrp.Position + Vector3.new(0, 2.6, 0)).Y) / 2
+            local BoxSize = Vector2.new(math.floor(Size * 1.5), math.floor(Size * 1.9))
+            local BoxPos = Vector2.new(math.floor(Vector.X - Size * 1.5 / 2), math.floor(Vector.Y - Size * 1.6 / 2))
+            local BottomOffset = BoxSize.Y + BoxPos.Y + 1
+
+            if OnScreen then
+                if MeowXD.Esp.Name.Enabled then
+                    v.Name.Position = Vector2.new(BoxSize.X / 2 + BoxPos.X, BoxPos.Y - 16)
+                    v.Name.Outline = MeowXD.Esp.Name.OutLine
+                    v.Name.Text = tostring(i)
+                    v.Name.Color = MeowXD.Esp.Name.Color
+                    v.Name.OutlineColor = Color3.fromRGB(0, 0, 0)
+                    v.Name.Font = 0
+                    v.Name.Size = 16
+
+                    v.Name.Visible = true
+                else
+                    v.Name.Visible = false
+                end
+                if MeowXD.Esp.Distance.Enabled and Client.Character and Client.Character:FindFirstChild("HumanoidRootPart") then
+                    v.Distance.Position = Vector2.new(BoxSize.X / 2 + BoxPos.X, BottomOffset)
+                    v.Distance.Outline = MeowXD.Esp.Distance.OutLine
+                    v.Distance.Text = "[" .. math.floor((Hrp.Position - Client.Character.HumanoidRootPart.Position).Magnitude) .. "m]"
+                    v.Distance.Color = MeowXD.Esp.Distance.Color
+                    v.Distance.OutlineColor = Color3.fromRGB(0, 0, 0)
+                    BottomOffset = BottomOffset + 15
+
+                    v.Distance.Font = 0
+                    v.Distance.Size = 16
+
+                    v.Distance.Visible = true
+                else
+                    v.Distance.Visible = false
+                end
+                if MeowXD.Esp.Box.Enabled then
+                    v.BoxOutline.Size = BoxSize
+                    v.BoxOutline.Position = BoxPos
+                    v.BoxOutline.Visible = MeowXD.Esp.Box.OutLine
+                    v.BoxOutline.Color = Color3.fromRGB(0, 0, 0)
+    
+                    v.Box.Size = BoxSize
+                    v.Box.Position = BoxPos
+                    v.Box.Color = MeowXD.Esp.Box.Color
+                    v.Box.Visible = true
+                else
+                    v.BoxOutline.Visible = false
+                    v.Box.Visible = false
+                end
+                if MeowXD.Esp.HealthBar.Enabled then
+                    v.HealthBar.From = Vector2.new((BoxPos.X - 5), BoxPos.Y + BoxSize.Y)
+                    v.HealthBar.To = Vector2.new(v.HealthBar.From.X, v.HealthBar.From.Y - (Hum.Health / Hum.MaxHealth) * BoxSize.Y)
+                    v.HealthBar.Color = MeowXD.Esp.HealthBar.Color
+                    v.HealthBar.Visible = true
+
+                    v.HealthBarOutline.From = Vector2.new(v.HealthBar.From.X, BoxPos.Y + BoxSize.Y + 1)
+                    v.HealthBarOutline.To = Vector2.new(v.HealthBar.From.X, (v.HealthBar.From.Y - 1 * BoxSize.Y) -1)
+                    v.HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
+                    v.HealthBarOutline.Visible = MeowXD.Esp.HealthBar.OutLine
+                else
+                    v.HealthBarOutline.Visible = false
+                    v.healthBar.Visible = false
+                end
+                if MeowXD.Esp.HealthText.Enabled then
+                    v.HealthText.Text = tostring(math.floor((Hum.Health / Hum.MaxHealth) * 100 + 0.5))
+                    v.HealthText.Position = Vector2.new((BoxPos.X - 20), (BoxPos.Y + BoxSize.Y - 1 * BoxSize.Y) -1)
+                    v.HealthText.Color = MeowXD.Esp.HealthText.Color
+                    v.HealthText.OutlineColor = Color3.fromRGB(0, 0, 0)
+                    v.HealthText.Outline = MeowXD.Esp.HealthText.OutLine
+
+                    v.HealthText.Font = 0
+                    v.HealthText.Size = 16
+
+                    v.HealthText.Visible = true
+                else
+                    v.HealthText.Visible = false
+                end
+            else
+                v.Name.Visible = false
+                v.BoxOutline.Visible = false
+                v.Box.Visible = false
+                v.HealthBarOutline.Visible = false
+                v.HealthBar.Visible = false
+                v.HealthText.Visible = false
+                v.Distance.Visible = false
+            end
+        else
+            v.Name.Visible = false
+            v.BoxOutline.Visible = false
+            v.Box.Visible = false
+            v.HealthBarOutline.Visible = false
+            v.HealthBar.Visible = false
+            v.HealthText.Visible = false
+            v.Distance.Visible = false
+        end
+    end
+end)
+
+-- // Client Fps (EXECUTES PER FRAME)
+RS.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()
+    Script.Functions.GetClosestPlayer()
+    Script.Functions.SilentMisc()
+    Script.Functions.MouseChanger()
+end))
+
+-- // Server Tick (EXECUTES PER TICK)
+RS.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+    Script.Functions.UpdateEsp()
+    Script.Functions.UpdateFOV()
+    if MeowXD.Silent.Enabled and MeowXD.Silent.ClosestPoint and Script.Functions.Alive(SilentTarget) and Players[tostring(SilentTarget)].Character:FindFirstChild(MeowXD.Silent.Part) then
+        local ClosestPoint = Script.Functions.GetClosestPointOfPart(Players[tostring(SilentTarget)].Character[MeowXD.Silent.Part])
+        ClosestPointCF = CFrame.new(ClosestPoint.X, ClosestPoint.Y, ClosestPoint.Z)
+    end
+    if MeowXD.AimAssist.Enabled and Script.Functions.Alive(AimTarget) and MeowXD.Silent.ClosestPart and Script.Functions.Alive(SilentTarget) then
+        local currentpart = tostring(Script.Functions.GetClosestBodyPart(AimTarget.Character))
+        if MeowXD.AimAssist.ClosestPart then
+			MeowXD.AimAssist.Part = currentpart
+		end
+        if MeowXD.Silent.ClosestPart then
+            MeowXD.Silent.Part = currentpart
+            OldSilentAimPart = MeowXD.Silent.Part
+        end
+        return
+    end
+    if MeowXD.AimAssist.Enabled and MeowXD.AimAssist.ClosestPart and Script.Functions.Alive(AimTarget) then
+        MeowXD.AimAssist.Part = tostring(Script.Functions.GetClosestBodyPart(AimTarget.Character))
+    end
+    if MeowXD.Silent.Enabled and MeowXD.Silent.ClosestPart and Script.Functions.Alive(SilentTarget) then
+        MeowXD.Silent.Part = tostring(Script.Functions.GetClosestBodyPart(SilentTarget.Character))
+        OldSilentAimPart = MeowXD.Silent.Part
+    end
+end))
+
+-- // Checks Everyone In The Server And Puts It In A Table
+for _, Player in ipairs(Players:GetPlayers()) do
+    if (Player ~= Client and Client:IsFriendsWith(Player.UserId)) then
+        table.insert(Script.Friends, Player)
+    end
+    Script.Functions.NewPlayer(Player)
+end
+
+-- // Checks When Players Joins And Adds Them To A Table
+Players.PlayerAdded:Connect(function(Player)
+    if (Client:IsFriendsWith(Player.UserId)) then
+        table.insert(Script.Friends, Player)
+    end
+    Script.Functions.NewPlayer(Player)
+end)
+
+-- // Checks If A Player Left And Removes Them From The Table
+Players.PlayerRemoving:Connect(function(Player)
+    local i = table.find(Script.Friends, Player)
+    if (i) then
+        table.remove(Script.Friends, i)
+    end
+    for i,v in pairs(Script.EspPlayers[Player]) do
+        v:Remove()
+    end
+    Script.EspPlayers[Player] = nil
+end)
+
+end)()
